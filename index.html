@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>大熊寶殿 GTARP 工具庫</title>
+    
+    <!-- 引入 Tailwind CSS 進行快速樣式開發 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 引入 Lucide 圖示庫 -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- 引入 Google 字體 Noto Sans TC -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+    <!-- Tailwind 設定與自訂樣式 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Noto Sans TC"', 'sans-serif'],
+                    },
+                    colors: {
+                        mainAccent: '#ff9ef7',
+                        darkBg: '#0f0f13',
+                        cardBg: '#1a1a24',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        html {
+            background-color: #0f0f13;
+        }
+        
+        body {
+            background-color: #0f0f13;
+            background-image: radial-gradient(circle at 50% 0%, #2a1b29 0%, rgba(15, 15, 19, 0) 50%);
+            color: #e5e7eb;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        /* 自訂滾動條 */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f0f13;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #374151;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #ff9ef7;
+        }
+    </style>
+</head>
+<body class="antialiased bg-darkBg selection:bg-mainAccent selection:text-black">
+
+    <!-- 頂部標題區塊 -->
+    <header class="py-12 px-4 border-b border-gray-800/60 bg-darkBg/50 backdrop-blur-sm sticky top-0 z-10">
+        <div class="container mx-auto max-w-6xl text-center">
+            <div class="inline-flex items-center justify-center p-3 bg-mainAccent/10 rounded-full mb-4">
+                <i data-lucide="bear" class="w-8 h-8 text-mainAccent"></i>
+            </div>
+            <h1 class="text-4xl md:text-5xl font-bold tracking-wider mb-3">
+                <span class="text-white">大熊寶殿</span> 
+                <span class="text-mainAccent drop-shadow-[0_0_8px_rgba(255,158,247,0.5)]">GTARP 工具庫</span>
+            </h1>
+            <p class="text-gray-400 text-lg max-w-2xl mx-auto">專為 GTARP 玩家與企劃打造的實用輔助小工具整合平台</p>
+        </div>
+    </header>
+
+    <!-- 主要內容區塊 -->
+    <main class="container mx-auto max-w-6xl px-4 py-12 flex-grow">
+        
+        <!-- 分類一：規劃與地圖 -->
+        <section class="mb-16 animate-fade-in">
+            <div class="flex items-center mb-6">
+                <i data-lucide="map" class="w-6 h-6 text-mainAccent mr-3"></i>
+                <h2 class="text-2xl font-bold text-white">規劃與地圖</h2>
+                <div class="flex-grow h-px bg-gradient-to-r from-gray-800 to-transparent ml-6"></div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                
+                <!-- 工具卡片：GTARP賽道規劃工具 -->
+                <a href="http://sites.google.com/view/daxion2026/map_plans" target="_blank" rel="noopener noreferrer" 
+                   class="group block bg-cardBg rounded-2xl p-6 border border-gray-800 hover:border-mainAccent transition-all duration-300 transform hover:-translate-y-1 hover:shadow-[0_8px_20px_rgba(255,158,247,0.15)] relative overflow-hidden">
+                    
+                    <!-- 卡片背景發光裝飾 -->
+                    <div class="absolute -right-10 -top-10 w-32 h-32 bg-mainAccent/10 rounded-full blur-3xl group-hover:bg-mainAccent/20 transition-all duration-500"></div>
+
+                    <div class="flex items-start justify-between mb-5 relative z-10">
+                        <div class="p-3 bg-darkBg border border-gray-700 rounded-xl group-hover:border-mainAccent/50 group-hover:bg-mainAccent/10 transition-colors duration-300">
+                            <i data-lucide="route" class="text-mainAccent w-7 h-7"></i>
+                        </div>
+                        <div class="bg-gray-800 rounded-full p-2 group-hover:bg-mainAccent transition-colors duration-300">
+                            <i data-lucide="arrow-up-right" class="text-gray-400 group-hover:text-black w-4 h-4"></i>
+                        </div>
+                    </div>
+                    
+                    <h3 class="text-xl font-bold text-white mb-3 group-hover:text-mainAccent transition-colors duration-300 relative z-10">GTARP賽道規劃工具</h3>
+                    
+                    <p class="text-gray-400 text-sm leading-relaxed relative z-10 group-hover:text-gray-300 transition-colors">
+                        可用於活動示意圖展示路徑或活動範圍。支援自訂節點、路線繪製，是企劃舉辦賽車、幫派活動及地圖區域劃分的最佳輔助工具。
+                    </p>
+                </a>
+                
+            </div>
+        </section>
+
+        <!-- 分類二：其他工具 (預留區塊) -->
+        <section class="mb-12">
+            <div class="flex items-center mb-6 text-gray-500">
+                <i data-lucide="blocks" class="w-6 h-6 mr-3"></i>
+                <h2 class="text-2xl font-bold">即將推出</h2>
+                <div class="flex-grow h-px bg-gradient-to-r from-gray-800 to-transparent ml-6"></div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 opacity-60">
+                <!-- 佔位卡片 -->
+                <div class="bg-cardBg/50 rounded-2xl p-6 border border-gray-800 border-dashed flex flex-col items-center justify-center text-center min-h-[220px]">
+                    <i data-lucide="hammer" class="text-gray-600 w-10 h-10 mb-4 animate-pulse"></i>
+                    <h3 class="text-gray-400 font-medium">更多實用工具開發中</h3>
+                    <p class="text-gray-600 text-sm mt-2">敬請期待後續更新</p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- 頁尾版權宣告 -->
+    <footer class="bg-[#0a0a0d] border-t border-gray-800 py-8 mt-auto">
+        <div class="container mx-auto px-4 text-center">
+            <a href="http://www.daxion.jsvtb.cc" target="_blank" rel="noopener noreferrer" 
+               class="inline-flex items-center justify-center gap-2 text-gray-500 hover:text-mainAccent transition-colors duration-300 text-sm group">
+                <span>Copyright ©大熊寶殿</span>
+                <i data-lucide="external-link" class="w-4 h-4 opacity-50 group-hover:opacity-100"></i>
+            </a>
+            <p class="text-gray-700 text-xs mt-2">Made for GTARP Community.</p>
+        </div>
+    </footer>
+
+    <!-- 初始化 Lucide 圖示 -->
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>
