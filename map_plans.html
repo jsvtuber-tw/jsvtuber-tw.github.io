@@ -1,0 +1,1870 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GTARP賽道規劃工具</title>
+    <!-- 引入 Tailwind CSS 作為快速排版工具 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 基礎全域設定 (暗黑主題) */
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #84aece; /* 畫布外底色 (地圖背景色) */
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #e0e0e0; 
+            user-select: none; 
+        }
+
+        /* 主題顏色設定：介面主色調 #ff9ef7 */
+        .theme-bg { background-color: #ff9ef7; }
+        .theme-text { color: #ff9ef7; }
+        .theme-border { border-color: #ff9ef7; }
+        
+        .btn {
+            background-color: #ff9ef7;
+            color: #1a1a1a; 
+            font-weight: bold;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            transition: all 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            border: none;
+            cursor: pointer;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(0,0,0,0.4);
+            filter: brightness(1.1);
+        }
+        .btn.active {
+            background-color: #f085e8; 
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.4);
+            transform: translateY(0);
+        }
+
+        /* 畫布容器設定 */
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            cursor: grab;
+        }
+        #canvas-container.panning { cursor: grabbing !important; }
+        #canvas-container.pointer { cursor: pointer; } 
+        #canvas-container.crosshair { cursor: crosshair; } /* 截圖時的游標 */
+
+        /* 頂部狀態列 */
+        #status-bar {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(30, 30, 30, 0.9);
+            color: #e0e0e0;
+            padding: 0.5rem 2rem;
+            border-bottom-left-radius: 1rem;
+            border-bottom-right-radius: 1rem;
+            border: 1px solid #ff9ef7;
+            border-top: none;
+            font-weight: bold;
+            z-index: 20;
+            backdrop-filter: blur(5px);
+            transition: all 0.3s;
+        }
+
+        /* --- 抽屜式側邊欄 (Sidebar) --- */
+        #sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            width: 350px;
+            background: rgba(30, 30, 30, 0.95);
+            border-right: 2px solid #ff9ef7;
+            box-shadow: 10px 0 25px rgba(0,0,0,0.5);
+            transform: translateX(0); /* 預設展開 */
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 50;
+            display: flex;
+            flex-direction: column;
+            backdrop-filter: blur(5px);
+        }
+        /* 收起狀態的 Class */
+        #sidebar.closed {
+            transform: translateX(-100%);
+        }
+        
+        /* 側欄內部捲動區 */
+        #sidebar-content {
+            padding: 1.5rem;
+            overflow-y: auto;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        #sidebar-content::-webkit-scrollbar { width: 6px; }
+        #sidebar-content::-webkit-scrollbar-thumb { background-color: #ff9ef7; border-radius: 4px; }
+
+        /* 側欄展開/收合開關 (固定在側欄右側邊緣) */
+        #sidebar-toggle {
+            position: absolute;
+            top: 50%;
+            right: -30px; 
+            width: 30px;
+            height: 80px;
+            background: #ff9ef7;
+            color: #1a1a1a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border-radius: 0 10px 10px 0;
+            font-weight: bold;
+            font-size: 1.2rem;
+            transform: translateY(-50%);
+            box-shadow: 4px 0 6px rgba(0,0,0,0.3);
+            border: 2px solid #ff9ef7;
+            border-left: none;
+            transition: filter 0.2s;
+        }
+        #sidebar-toggle:hover {
+            filter: brightness(1.1);
+        }
+
+        input[type=range] { accent-color: #ff9ef7; }
+        
+        input[type=color] {
+            -webkit-appearance: none;
+            border: none;
+            width: 28px;
+            height: 28px;
+            border-radius: 4px;
+            cursor: pointer;
+            padding: 0;
+            background: transparent;
+        }
+        input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
+        input[type=color]::-webkit-color-swatch { border: 2px solid #555; border-radius: 4px; }
+
+        select {
+            background-color: #1e1e1e;
+            color: white;
+            border: 1px solid #555;
+            border-radius: 0.25rem;
+            padding: 0.2rem 0.5rem;
+            outline: none;
+        }
+        select:focus { border-color: #ff9ef7; }
+
+        /* 載入畫面 */
+        #loading {
+            position: absolute;
+            inset: 0;
+            background-color: #84aece;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 999;
+            font-size: 2rem;
+            font-weight: bold;
+            color: #1a1a1a;
+            text-shadow: 2px 2px 4px rgba(255,255,255,0.5);
+        }
+
+        /* 自訂選單共用樣式 */
+        .custom-menu {
+            position: absolute;
+            background: #1e1e1e;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            border: 1px solid #ff9ef7;
+            border-radius: 0.5rem;
+            padding: 0.5rem;
+            z-index: 60;
+            display: none;
+            flex-direction: column;
+            gap: 0.25rem;
+            color: #e0e0e0;
+        }
+        .ctx-item {
+            padding: 0.5rem 1rem;
+            border-radius: 0.25rem;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        .ctx-item:hover {
+            background-color: #ff9ef7;
+            color: #1a1a1a;
+        }
+
+        /* 浮動提示訊息 (Toast) */
+        #toast-container {
+            position: fixed;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .toast {
+            background-color: #ff9ef7;
+            color: #1a1a1a;
+            font-weight: bold;
+            padding: 0.75rem 1.5rem;
+            border-radius: 999px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.5);
+            animation: fadeInOut 3s forwards;
+        }
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translateY(20px); }
+            10% { opacity: 1; transform: translateY(0); }
+            90% { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-20px); }
+        }
+
+        .checklist-container {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #555;
+            border-radius: 0.25rem;
+            padding: 0.5rem;
+            background: #2a2a2a;
+        }
+        .checklist-container::-webkit-scrollbar { width: 4px; }
+        .checklist-container::-webkit-scrollbar-thumb { background-color: #ff9ef7; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+    <!-- 載入中提示畫面 -->
+    <div id="loading">
+        <span id="loading-text">載入地圖資源中，請稍候...</span>
+        <span class="text-sm font-normal mt-2 text-gray-700">若卡住太久，請檢查網路連線</span>
+    </div>
+
+    <!-- 狀態列 -->
+    <div id="status-bar">🟢 待命模式：請在畫布按「右鍵」開啟選單</div>
+
+    <!-- 浮動提示容器 -->
+    <div id="toast-container"></div>
+
+    <!-- 待命右鍵選單 -->
+    <div id="context-menu" class="custom-menu min-w-[180px]">
+        <div class="text-xs text-gray-400 mb-1 px-2 border-b border-gray-700 pb-1">請選擇繪製模式</div>
+        <div class="ctx-item" id="ctx-route">📍 開始設定賽道路徑</div>
+        <div class="ctx-item" id="ctx-area">🛑 開始繪製範圍</div>
+    </div>
+
+    <!-- 繪圖結束專用選單 -->
+    <div id="finish-menu" class="custom-menu min-w-[140px]">
+        <div class="text-xs text-gray-400 mb-1 px-2 border-b border-gray-700 pb-1">節點操作</div>
+        <div class="ctx-item text-center text-green-400 hover:!text-white hover:!bg-green-600" id="ctx-finish">🏁 確定終點</div>
+    </div>
+
+    <!-- 自訂儲存名稱模態框 -->
+    <div id="save-modal" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
+        <div class="bg-[#1e1e1e] p-6 rounded-lg shadow-2xl w-80 border-2 theme-border text-gray-200">
+            <h3 class="text-lg font-bold mb-4">儲存當前規劃</h3>
+            <input type="text" id="plan-name-input" class="w-full bg-[#2a2a2a] border border-gray-600 p-2 rounded mb-4 focus:outline-none focus:ring-2 focus:ring-[#ff9ef7] text-white" placeholder="請輸入路線名稱...">
+            <div class="flex justify-end gap-2">
+                <button id="btn-cancel-save" class="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-500 font-bold transition-colors">取消</button>
+                <button id="btn-confirm-save" class="px-4 py-2 bg-[#ff9ef7] text-black rounded hover:brightness-110 font-bold transition-colors">儲存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 匯出/匯入專用模態框 -->
+    <div id="transfer-modal" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
+        <div class="bg-[#1e1e1e] p-6 rounded-lg shadow-2xl w-96 border-2 theme-border text-gray-200">
+            <h3 id="transfer-modal-title" class="text-lg font-bold mb-4">選擇資料</h3>
+            <div id="transfer-checklist" class="checklist-container mb-4 flex flex-col gap-2">
+                <!-- Javascript 填充 -->
+            </div>
+            <div class="flex justify-between items-center">
+                <label class="flex items-center gap-1 cursor-pointer text-sm">
+                    <input type="checkbox" id="transfer-select-all" class="accent-[#ff9ef7]"> 全選
+                </label>
+                <div class="flex gap-2">
+                    <button id="btn-cancel-transfer" class="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-500 font-bold transition-colors">取消</button>
+                    <button id="btn-confirm-transfer" class="px-4 py-2 bg-[#ff9ef7] text-black rounded hover:brightness-110 font-bold transition-colors">確認</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 隱藏的檔案輸入框群組 -->
+    <input type="file" id="import-file-input" accept=".json" class="hidden">
+    <input type="file" id="upload-main-map-input" accept="image/*" class="hidden">
+    <input type="file" id="upload-sub-map-input" accept="image/*" class="hidden">
+
+    <!-- 截圖預覽模態框 -->
+    <div id="screenshot-modal" class="hidden fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50">
+        <div class="bg-[#1e1e1e] p-4 rounded-lg shadow-2xl flex flex-col max-w-4xl max-h-[90vh]">
+            <h3 class="text-lg font-bold mb-2 text-[#ff9ef7]">📸 截圖預覽</h3>
+            <div class="flex-1 overflow-hidden flex justify-center items-center border border-gray-600 bg-black rounded mb-4 min-h-[300px]">
+                <img id="screenshot-preview-img" class="max-w-full max-h-full object-contain" src="" alt="截圖預覽">
+            </div>
+            <div class="flex justify-end gap-2">
+                <button id="btn-cancel-screenshot" class="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-500 font-bold transition-colors">取消</button>
+                <a id="btn-download-screenshot" href="#" download="麻糬賽道截圖.png" class="px-4 py-2 bg-[#ff9ef7] text-black rounded hover:brightness-110 font-bold transition-colors no-underline">下載圖片</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 側邊欄 (Sidebar) -->
+    <div id="sidebar">
+        <!-- 收合/展開按鈕 -->
+        <div id="sidebar-toggle" title="隱藏/展開面板">◀</div>
+        
+        <div id="sidebar-content">
+            <div class="flex justify-between items-end border-b-2 theme-border pb-2">
+                <h1 class="text-xl font-bold text-white">麻糬賽道規劃工具</h1>
+                <span id="db-status" class="text-xs text-gray-400">連線中...</span>
+            </div>
+
+            <!-- 地圖上傳設定區塊 -->
+            <div class="bg-[#2a2a2a] p-3 rounded-lg border border-gray-600">
+                <h2 class="font-bold text-sm mb-2 text-[#ff9ef7]">🗺️ 地圖設定</h2>
+                <div class="flex flex-col gap-2">
+                    <div class="flex gap-2">
+                        <button id="btn-upload-main-map" class="px-2 py-1 bg-gray-700 text-white text-xs font-bold rounded hover:bg-gray-600 flex-1">更換主地圖</button>
+                        <button id="btn-upload-sub-map" class="px-2 py-1 bg-gray-700 text-white text-xs font-bold rounded hover:bg-gray-600 flex-1">更換副地圖</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 路線設定區塊 -->
+            <div class="bg-[#2a2a2a] p-3 rounded-lg border border-gray-600">
+                <h2 class="font-bold text-sm mb-2 text-gray-300">路線設定 (賽道)</h2>
+                <div class="flex justify-between items-center">
+                    <span class="text-xs text-gray-400">路線主題顏色</span>
+                    <input type="color" id="input-route-color" value="#ab66ff">
+                </div>
+            </div>
+
+            <!-- 範圍設定區塊 -->
+            <div class="bg-[#2a2a2a] p-3 rounded-lg border border-gray-600">
+                <h2 class="font-bold text-sm mb-2 text-gray-300">範圍設定 (多角形)</h2>
+                <div class="flex flex-col gap-2 mb-2 pb-2 border-b border-gray-700 text-xs">
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-400">線條樣式：</span>
+                        <select id="input-area-style">
+                            <option value="solid" selected>單色實線</option>
+                            <option value="warning">警示線 (主色+黑)</option>
+                        </select>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-400">邊界主色：</span>
+                        <input type="color" id="input-area-color" value="#ab66ff"> 
+                    </div>
+                    <div class="flex justify-between items-center mt-1">
+                        <label class="flex items-center gap-1 cursor-pointer">
+                            <input type="checkbox" id="input-area-glow-enabled" checked class="accent-[#ff9ef7]">
+                            <span class="text-gray-400">開啟發光特效</span>
+                        </label>
+                        <div class="flex items-center gap-1">
+                            <span class="text-gray-400">光暈色：</span>
+                            <input type="color" id="input-area-glow-color" value="#ab66ff"> 
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-2">
+                    <label class="text-xs flex justify-between">
+                        <span class="text-gray-400">圓角程度</span>
+                        <span id="radius-val" class="text-gray-200">20px</span>
+                    </label>
+                    <input type="range" id="input-radius" min="0" max="200" value="20" class="w-full">
+                </div>
+                <div>
+                    <label class="text-xs flex justify-between">
+                        <span class="text-gray-400">外部暗色透明度</span>
+                        <span id="opacity-val" class="text-gray-200">60%</span>
+                    </label>
+                    <input type="range" id="input-opacity" min="0" max="100" value="60" class="w-full">
+                </div>
+            </div>
+
+            <!-- 全域顯示設定與截圖 -->
+            <div class="flex flex-col gap-2 mb-1 px-1">
+                <label class="flex items-center gap-1 cursor-pointer">
+                    <input type="checkbox" id="input-show-aux-nodes" checked class="accent-[#ff9ef7]">
+                    <span class="text-sm text-[#ff9ef7] font-bold">顯示所有輔助節點</span>
+                </label>
+                <button id="btn-start-screenshot" class="btn w-full text-sm">📸 區域截圖 (隱藏側欄)</button>
+            </div>
+
+            <!-- 畫布操作按鈕 -->
+            <div class="flex gap-2">
+                <button id="btn-clear-route" class="btn flex-1 text-sm !bg-red-900 !text-red-100 hover:!bg-red-800 border border-red-700 shadow-none">清空路線</button>
+                <button id="btn-clear-area" class="btn flex-1 text-sm !bg-red-900 !text-red-100 hover:!bg-red-800 border border-red-700 shadow-none">清空範圍</button>
+            </div>
+
+            <!-- 資料庫存檔區塊 -->
+            <div class="bg-[#2a2a2a] p-2 rounded-lg border border-[#ff9ef7] mt-1 shadow-inner">
+                <div class="flex justify-between items-center mb-2">
+                    <h2 class="font-bold text-sm text-[#ff9ef7]">📂 雲端存檔與讀取</h2>
+                    <div class="flex gap-1">
+                        <button id="btn-export" class="px-2 py-1 bg-gray-700 text-xs rounded hover:bg-gray-600 transition-colors" title="匯出資料為 JSON">📤 匯出</button>
+                        <button id="btn-import" class="px-2 py-1 bg-gray-700 text-xs rounded hover:bg-gray-600 transition-colors" title="從 JSON 匯入資料">📥 匯入</button>
+                        <button id="btn-save-plan" class="px-2 py-1 bg-[#ff9ef7] text-black font-bold text-xs rounded hover:brightness-110 transition-colors">儲存</button>
+                    </div>
+                </div>
+                <div id="plans-list" class="flex flex-col gap-2 mt-1 max-h-32 overflow-y-auto pr-1 border-t border-gray-700 pt-2">
+                    <p class="text-xs text-gray-500 text-center">尚無存檔紀錄</p>
+                </div>
+            </div>
+
+            <!-- 操作說明 -->
+            <div class="p-2 bg-[#222] rounded border border-gray-700">
+                <p class="text-xs text-gray-400 leading-relaxed">
+                    <b>💡 專業鋼筆工具操作：</b><br>
+                    • <b class="text-[#ff9ef7]">右鍵單擊線條</b>：於該處插入新節點<br>
+                    • <b>右鍵拖曳/長按拖曳</b>：拉出彎道 / 自由畫圖<br>
+                    • <b>左鍵單擊節點</b>：顯示兩側控制桿<br>
+                    • <b class="text-[#ff9ef7]">左鍵拖曳控制桿</b>：獨立調整單邊角度<br>
+                    • <b class="text-[#ff9ef7]">Shift + 左拖節點</b>：拉出對稱控制桿<br>
+                    • <b class="text-green-400">Ctrl + 左擊節點</b>：切換為隱藏輔助點<br>
+                    • <b class="text-red-400">Alt + 左擊控制桿/節點</b>：刪除彎曲度<br>
+                    • <b>左鍵雙擊節點</b>：刪除整個節點<br>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 畫布容器 -->
+    <div id="canvas-container">
+        <canvas id="mapCanvas"></canvas>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const canvas = document.getElementById('mapCanvas');
+        const ctx = canvas.getContext('2d');
+        const contextMenu = document.getElementById('context-menu');
+        const finishMenu = document.getElementById('finish-menu');
+        const statusBar = document.getElementById('status-bar');
+        const sidebar = document.getElementById('sidebar');
+        const sidebarToggle = document.getElementById('sidebar-toggle');
+        
+        const MAIN_MAP_URL = 'https://r2.fivemanage.com/XbTfimN1V2ewbHyVypsMo/FiveMMapLayered_1.png';
+        const SUB_MAP_URL = 'https://r2.fivemanage.com/XbTfimN1V2ewbHyVypsMo/cayo.png';
+        
+        let mainMapImg = new Image();
+        let subMapImg = new Image();
+
+        // 核心狀態管理
+        const state = {
+            isReady: false,    
+            activeMode: 'idle', 
+
+            routePoints: [],
+            routeColor: '#ab66ff',
+
+            areaPoints: [],
+            areaColor: '#ab66ff',       
+            areaLineStyle: 'solid',   
+            areaGlowEnabled: true,      
+            areaGlowColor: '#ab66ff',   
+            cornerRadius: 20,
+            maskOpacity: 0.6,
+
+            showAuxNodes: true, 
+            
+            panX: 0, panY: 0, zoom: 1,
+            targetPanX: 0, targetPanY: 0, 
+            
+            isDraggingMap: false, 
+            dragStartX: 0, dragStartY: 0,
+            panVelocityX: 0, panVelocityY: 0,
+            lastPanTime: 0, lastPanX: 0, lastPanY: 0,
+
+            selectedRouteNodeIndex: -1, 
+            selectedAreaNodeIndex: -1,  
+            draggedRouteNodeIndex: -1,  
+            draggedAreaNodeIndex: -1,
+            draggedHandleType: null,    
+            
+            currentPlans: [],
+
+            isSelectingScreenshot: false,
+            screenRectStart: {x: 0, y: 0},
+            screenRectEnd: {x: 0, y: 0}
+        };
+
+        let transferMode = 'none'; 
+        let pendingImportData = [];
+
+        const rcDraw = {
+            isDown: false,
+            startX: 0, startY: 0,
+            worldStartX: 0, worldStartY: 0,
+            mode: 'none', 
+            timer: null,
+            tempNode: null, 
+            tempFreehandPoints: []
+        };
+
+        let db, auth, currentUser, appId;
+        let unsubscribePlans = null;
+
+        function upgradeLegacyPoints(points) {
+            return points.map(p => {
+                if (p.hx !== undefined) {
+                    p.f_hx = p.hx; p.f_hy = p.hy;
+                    p.b_hx = -p.hx; p.b_hy = -p.hy;
+                    delete p.hx; delete p.hy;
+                }
+                p.isHidden = !!p.isHidden;
+                return p;
+            });
+        }
+
+        function init() {
+            // 移除跨域屬性，確保遠端預設地圖不論 CORS 政策皆可顯示
+            let initialLoadCount = 2;
+            const checkInitialLoad = () => {
+                initialLoadCount--;
+                if (initialLoadCount <= 0) {
+                    state.isReady = true; 
+                    document.getElementById('loading').style.display = 'none';
+                    
+                    let baseW = (mainMapImg.complete && mainMapImg.naturalWidth > 0) ? mainMapImg.width : window.innerWidth;
+                    let baseH = (mainMapImg.complete && mainMapImg.naturalHeight > 0) ? mainMapImg.height : window.innerHeight;
+
+                    state.targetZoom = state.zoom = window.innerHeight / baseH;
+                    state.targetPanX = state.panX = (window.innerWidth - (baseW * state.zoom)) / 2;
+                    state.targetPanY = state.panY = 0;
+                    requestRender();
+                }
+            };
+
+            mainMapImg.onload = checkInitialLoad;
+            subMapImg.onload = checkInitialLoad;
+            
+            mainMapImg.onerror = () => {
+                showToast("⚠️ 主地圖外部資源載入異常。建議從左側選單上傳本地地圖！");
+                checkInitialLoad(); 
+            };
+            subMapImg.onerror = () => {
+                showToast("⚠️ 副地圖外部資源載入異常。");
+                checkInitialLoad(); 
+            };
+            
+            mainMapImg.src = MAIN_MAP_URL;
+            subMapImg.src = SUB_MAP_URL;
+
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+            
+            bindUIEvents();
+            bindCanvasEvents();
+            initFirebase();
+        }
+
+        window.showToast = function(message) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.innerText = message;
+            container.appendChild(toast);
+            setTimeout(() => { if(toast.parentNode) toast.parentNode.removeChild(toast); }, 3000);
+        }
+
+        function setMode(mode) {
+            state.activeMode = mode;
+            if (mode === 'idle') {
+                statusBar.innerText = '🟢 待命模式：請在畫布按「右鍵」開啟選單';
+                statusBar.style.backgroundColor = 'rgba(30,30,30,0.9)';
+                statusBar.style.color = '#e0e0e0';
+            } else if (mode === 'route') {
+                statusBar.innerText = '📍 賽道路徑繪製中：對線條右鍵新增節點，按 ESC 退出';
+                statusBar.style.backgroundColor = 'rgba(255, 158, 247, 0.9)';
+                statusBar.style.color = '#1a1a1a';
+            } else if (mode === 'area') {
+                statusBar.innerText = '🛑 範圍繪製中：對邊界右鍵新增節點，按 ESC 退出';
+                statusBar.style.backgroundColor = 'rgba(255, 158, 247, 0.9)';
+                statusBar.style.color = '#1a1a1a';
+            } else if (mode === 'screenshot') {
+                statusBar.innerText = '📸 截圖模式：請在畫布上拖曳滑鼠框選要截圖的範圍，按 ESC 取消';
+                statusBar.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
+                statusBar.style.color = '#ff0000';
+            }
+            contextMenu.style.display = 'none';
+            finishMenu.style.display = 'none';
+            state.selectedRouteNodeIndex = -1;
+            state.selectedAreaNodeIndex = -1;
+            requestRender();
+        }
+
+        // --- 共用載入邏輯 (無條件套用) ---
+        function executeLoadPlan(data, planName) {
+            state.routePoints = upgradeLegacyPoints(data.routePoints || []);
+            state.routeColor = data.routeColor || '#ab66ff';
+            state.areaPoints = upgradeLegacyPoints(data.areaPoints || []);
+            state.areaColor = data.areaColor || '#ab66ff';
+            state.areaLineStyle = data.areaLineStyle || 'solid';
+            state.areaGlowEnabled = data.areaGlowEnabled !== undefined ? data.areaGlowEnabled : true;
+            state.areaGlowColor = data.areaGlowColor || '#ab66ff';
+            state.cornerRadius = data.cornerRadius || 20;
+            state.maskOpacity = data.maskOpacity || 0.6;
+            
+            document.getElementById('input-route-color').value = state.routeColor;
+            document.getElementById('input-area-color').value = state.areaColor;
+            document.getElementById('input-area-style').value = state.areaLineStyle;
+            document.getElementById('input-area-glow-enabled').checked = state.areaGlowEnabled;
+            document.getElementById('input-area-glow-color').value = state.areaGlowColor;
+            document.getElementById('input-radius').value = state.cornerRadius;
+            document.getElementById('radius-val').innerText = state.cornerRadius + 'px';
+            document.getElementById('input-opacity').value = state.maskOpacity * 100;
+            document.getElementById('opacity-val').innerText = (state.maskOpacity * 100) + '%';
+            
+            setMode('idle'); 
+            requestRender();
+            showToast(`已讀取: ${planName}`);
+        }
+
+        // --- Firebase ---
+        async function initFirebase() {
+            try {
+                if (typeof __firebase_config !== 'undefined') {
+                    const firebaseConfig = JSON.parse(__firebase_config);
+                    const app = initializeApp(firebaseConfig);
+                    auth = getAuth(app);
+                    db = getFirestore(app);
+                    appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+
+                    onAuthStateChanged(auth, (user) => {
+                        currentUser = user;
+                        const dbStatus = document.getElementById('db-status');
+                        if (user) {
+                            if(dbStatus) {
+                                dbStatus.innerText = '🟢 已連線雲端';
+                                dbStatus.classList.replace('text-gray-400', 'text-green-400');
+                            }
+                            loadPlansFromFirestore();
+                        } else {
+                            if(dbStatus) dbStatus.innerText = '🔴 未登入';
+                        }
+                    });
+                } else {
+                    const dbStatus = document.getElementById('db-status');
+                    if(dbStatus) dbStatus.innerText = '⚠️ 本地模式 (無雲端)';
+                }
+            } catch (error) {
+                const dbStatus = document.getElementById('db-status');
+                if(dbStatus) dbStatus.innerText = '❌ 資料庫錯誤';
+            }
+        }
+
+        function loadPlansFromFirestore() {
+            if (!currentUser || !db) return;
+            const plansCol = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'plans');
+            if (unsubscribePlans) unsubscribePlans();
+
+            unsubscribePlans = onSnapshot(plansCol, (snapshot) => {
+                const listContainer = document.getElementById('plans-list');
+                listContainer.innerHTML = '';
+                state.currentPlans = []; 
+
+                if (snapshot.empty) {
+                    listContainer.innerHTML = '<p class="text-xs text-gray-500 text-center">尚無存檔紀錄</p>';
+                    return;
+                }
+                
+                snapshot.forEach(docSnap => {
+                    const data = docSnap.data();
+                    const docId = docSnap.id;
+                    state.currentPlans.push({ id: docId, ...data }); 
+                    
+                    const item = document.createElement('div');
+                    item.className = 'flex justify-between items-center bg-[#222] p-2 rounded border border-gray-600 text-sm text-gray-200';
+                    item.innerHTML = `
+                        <span class="font-bold truncate w-24 text-[#ff9ef7]" title="${data.name}">${data.name}</span>
+                        <div class="flex gap-1">
+                            <button class="btn-load px-2 py-1 bg-[#ff9ef7] hover:brightness-110 text-black rounded text-xs font-bold transition-all">讀取</button>
+                            <button class="btn-delete px-2 py-1 bg-red-900 hover:bg-red-800 text-red-100 rounded text-xs font-bold transition-colors">刪除</button>
+                        </div>
+                    `;
+                    item.querySelector('.btn-load').addEventListener('click', () => {
+                        executeLoadPlan(data, data.name || '未命名存檔');
+                    });
+                    
+                    item.querySelector('.btn-delete').addEventListener('click', async () => {
+                        try {
+                            await deleteDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'plans', docId));
+                            showToast('檔案已刪除');
+                        } catch (e) {}
+                    });
+                    listContainer.appendChild(item);
+                });
+            }, (error) => { showToast("讀取資料庫失敗"); });
+        }
+
+        async function savePlanToFirestore(planName) {
+            if (!currentUser || !db) return showToast("環境不支援雲端存檔");
+            try {
+                const plansCol = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'plans');
+                await addDoc(plansCol, {
+                    name: planName,
+                    routePoints: state.routePoints,
+                    routeColor: state.routeColor,
+                    areaPoints: state.areaPoints,
+                    areaColor: state.areaColor,
+                    areaLineStyle: state.areaLineStyle,
+                    areaGlowEnabled: state.areaGlowEnabled,
+                    areaGlowColor: state.areaGlowColor,
+                    cornerRadius: state.cornerRadius,
+                    maskOpacity: state.maskOpacity,
+                    createdAt: Date.now()
+                });
+                showToast('儲存成功！');
+            } catch (error) { showToast('儲存失敗'); }
+        }
+
+        // --- 核心幾何 ---
+        function distToSegmentSquared(p, v, w) {
+            let l2 = (v.x - w.x)**2 + (v.y - w.y)**2;
+            if (l2 === 0) return (p.x - v.x)**2 + (p.y - v.y)**2;
+            let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
+            t = Math.max(0, Math.min(1, t));
+            return (p.x - (v.x + t * (w.x - v.x)))**2 + (p.y - (v.y + t * (w.y - v.y)))**2;
+        }
+
+        function getBezierPoint(t, p0, p1, p2, p3) {
+            let mt = 1 - t;
+            return {
+                x: mt**3 * p0.x + 3 * mt**2 * t * p1.x + 3 * mt * t**2 * p2.x + t**3 * p3.x,
+                y: mt**3 * p0.y + 3 * mt**2 * t * p1.y + 3 * mt * t**2 * p2.y + t**3 * p3.y
+            };
+        }
+
+        function getHitSegmentIndex(px, py, points, isClosed, zoom) {
+            if (points.length < 2) return -1;
+            const hitThresholdSq = (10 / zoom) ** 2; 
+            const steps = 10; 
+
+            let len = isClosed ? points.length : points.length - 1;
+            for (let i = 0; i < len; i++) {
+                let p1 = points[i];
+                let p2 = points[(i + 1) % points.length];
+                let hasCurve = (p1.f_hx || p1.f_hy || p2.b_hx || p2.b_hy);
+                
+                if (!hasCurve) {
+                    if (distToSegmentSquared({x: px, y: py}, p1, p2) <= hitThresholdSq) return i;
+                } else {
+                    let cp1 = {x: p1.x + (p1.f_hx||0), y: p1.y + (p1.f_hy||0)};
+                    let cp2 = {x: p2.x + (p2.b_hx||0), y: p2.y + (p2.b_hy||0)};
+                    let prevPoint = p1;
+                    for (let j = 1; j <= steps; j++) {
+                        let t = j / steps;
+                        let curvePt = getBezierPoint(t, p1, cp1, cp2, p2);
+                        if (distToSegmentSquared({x: px, y: py}, prevPoint, curvePt) <= hitThresholdSq) return i;
+                        prevPoint = curvePt;
+                    }
+                }
+            }
+            return -1;
+        }
+
+        function simplifyDP(points, epsilon) {
+            if (points.length <= 2) return points;
+            let dmax = 0, index = 0;
+            const end = points.length - 1;
+            for (let i = 1; i < end; i++) {
+                let d = Math.sqrt(distToSegmentSquared(points[i], points[0], points[end]));
+                if (d > dmax) { index = i; dmax = d; }
+            }
+            if (dmax > epsilon) {
+                let rec1 = simplifyDP(points.slice(0, index + 1), epsilon);
+                let rec2 = simplifyDP(points.slice(index), epsilon);
+                return rec1.slice(0, -1).concat(rec2);
+            } else {
+                return [points[0], points[end]];
+            }
+        }
+
+        function convertFreehandToBezier(pts) {
+            let nodes = [];
+            for(let i=0; i<pts.length; i++) {
+                let hx = 0, hy = 0;
+                if(i > 0 && i < pts.length - 1) {
+                    let prev = pts[i-1], next = pts[i+1];
+                    let tx = next.x - prev.x, ty = next.y - prev.y; 
+                    let len = Math.hypot(tx, ty);
+                    if(len > 0) {
+                        let distToNext = Math.hypot(next.x - pts[i].x, next.y - pts[i].y);
+                        const tension = 0.3; 
+                        hx = (tx/len) * distToNext * tension;
+                        hy = (ty/len) * distToNext * tension;
+                    }
+                }
+                nodes.push({ x: pts[i].x, y: pts[i].y, f_hx: hx, f_hy: hy, b_hx: -hx, b_hy: -hy, isHidden: false });
+            }
+            return nodes;
+        }
+
+        // --- 核心渲染分離 ---
+        function drawScene(ctxTarget, targetWidth, targetHeight, panX, panY, zoom) {
+            ctxTarget.fillStyle = '#84aece';
+            ctxTarget.fillRect(0, 0, targetWidth, targetHeight);
+            
+            ctxTarget.save();
+            ctxTarget.translate(panX, panY);
+            ctxTarget.scale(zoom, zoom);
+
+            let baseW = targetWidth;
+            let baseH = targetHeight;
+            if (mainMapImg.complete && mainMapImg.naturalWidth > 0) {
+                ctxTarget.drawImage(mainMapImg, 0, 0);
+                baseW = mainMapImg.width;
+                baseH = mainMapImg.height;
+            }
+            
+            if (subMapImg.complete && subMapImg.naturalWidth > 0) {
+                const overlap = 80; 
+                const subMapX = baseW - overlap;
+                const subMapY = baseH - overlap;
+                ctxTarget.drawImage(subMapImg, subMapX, subMapY);
+            }
+
+            let areaPointsToDraw = [...state.areaPoints];
+            if (state.activeMode === 'area' && rcDraw.tempNode && rcDraw.mode === 'bezier') areaPointsToDraw.push(rcDraw.tempNode);
+            if (areaPointsToDraw.length > 0) {
+                const sx = -panX / zoom;
+                const sy = -panY / zoom;
+                const sw = targetWidth / zoom;
+                const sh = targetHeight / zoom;
+                drawAreaMaskAndBorder(ctxTarget, areaPointsToDraw, zoom, sx, sy, sw, sh);
+            }
+
+            let routePointsToDraw = [...state.routePoints];
+            if (state.activeMode === 'route' && rcDraw.tempNode && rcDraw.mode === 'bezier') routePointsToDraw.push(rcDraw.tempNode);
+            if (routePointsToDraw.length > 0) drawRouteAndPreview(ctxTarget, routePointsToDraw, zoom);
+
+            if (rcDraw.mode === 'freehand' && rcDraw.tempFreehandPoints.length > 0) {
+                ctxTarget.beginPath();
+                ctxTarget.moveTo(rcDraw.tempFreehandPoints[0].x, rcDraw.tempFreehandPoints[0].y);
+                for(let i = 1; i < rcDraw.tempFreehandPoints.length; i++) {
+                    ctxTarget.lineTo(rcDraw.tempFreehandPoints[i].x, rcDraw.tempFreehandPoints[i].y);
+                }
+                ctxTarget.strokeStyle = state.activeMode === 'route' ? state.routeColor : state.areaColor;
+                ctxTarget.lineWidth = 4 / zoom;
+                ctxTarget.lineJoin = 'round';
+                ctxTarget.lineCap = 'round';
+                ctxTarget.stroke();
+            }
+
+            ctxTarget.restore();
+        }
+
+        let isRenderLoopRunning = false;
+        function requestRender() {
+            if (!isRenderLoopRunning) {
+                isRenderLoopRunning = true;
+                requestAnimationFrame(renderLoop);
+            }
+        }
+
+        function renderLoop() {
+            let needsRender = false;
+            const lerpFactorPan = 0.2; 
+
+            if (Math.abs(state.targetPanX - state.panX) > 0.1 || Math.abs(state.targetPanY - state.panY) > 0.1) {
+                state.panX += (state.targetPanX - state.panX) * lerpFactorPan;
+                state.panY += (state.targetPanY - state.panY) * lerpFactorPan;
+                needsRender = true;
+            } else {
+                state.panX = state.targetPanX;
+                state.panY = state.targetPanY;
+            }
+
+            renderCore();
+
+            if (needsRender || state.isDraggingMap || rcDraw.isDown || state.draggedRouteNodeIndex !== -1 || state.draggedAreaNodeIndex !== -1 || state.draggedHandleType || state.isSelectingScreenshot) {
+                requestAnimationFrame(renderLoop);
+            } else {
+                isRenderLoopRunning = false;
+            }
+        }
+
+        function renderCore() {
+            if (!state.isReady) return;
+            
+            drawScene(ctx, canvas.width, canvas.height, state.panX, state.panY, state.zoom);
+
+            if (state.activeMode === 'screenshot') {
+                ctx.save();
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                if (state.isSelectingScreenshot) {
+                    let rx = Math.min(state.screenRectStart.x, state.screenRectEnd.x);
+                    let ry = Math.min(state.screenRectStart.y, state.screenRectEnd.y);
+                    let rw = Math.abs(state.screenRectEnd.x - state.screenRectStart.x);
+                    let rh = Math.abs(state.screenRectEnd.y - state.screenRectStart.y);
+                    
+                    ctx.clearRect(rx, ry, rw, rh);
+                    
+                    ctx.strokeStyle = '#ff9ef7';
+                    ctx.lineWidth = 2;
+                    ctx.shadowColor = '#ff9ef7';
+                    ctx.shadowBlur = 10;
+                    ctx.strokeRect(rx, ry, rw, rh);
+                }
+                ctx.restore();
+            }
+        }
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            requestRender();
+        }
+
+        function drawBezierHandles(ctxTarget, p, zoom) {
+            if (p.f_hx !== 0 || p.f_hy !== 0) {
+                ctxTarget.beginPath();
+                ctxTarget.moveTo(p.x, p.y);
+                ctxTarget.lineTo(p.x + p.f_hx, p.y + p.f_hy);
+                ctxTarget.strokeStyle = '#ffffff'; 
+                ctxTarget.lineWidth = 1.5 / zoom;
+                ctxTarget.stroke();
+                ctxTarget.fillStyle = '#ffffff';
+                ctxTarget.beginPath(); ctxTarget.arc(p.x + p.f_hx, p.y + p.f_hy, 4 / zoom, 0, Math.PI * 2); ctxTarget.fill();
+            }
+            if (p.b_hx !== 0 || p.b_hy !== 0) {
+                ctxTarget.beginPath();
+                ctxTarget.moveTo(p.x, p.y);
+                ctxTarget.lineTo(p.x + p.b_hx, p.y + p.b_hy);
+                ctxTarget.strokeStyle = '#ffffff'; 
+                ctxTarget.lineWidth = 1.5 / zoom;
+                ctxTarget.stroke();
+                ctxTarget.fillStyle = '#ffffff';
+                ctxTarget.beginPath(); ctxTarget.arc(p.x + p.b_hx, p.y + p.b_hy, 4 / zoom, 0, Math.PI * 2); ctxTarget.fill();
+            }
+        }
+
+        function buildAreaPath(ctxTarget, points, radius) {
+            if (points.length < 3) {
+                if (points.length > 0) ctxTarget.moveTo(points[0].x, points[0].y);
+                for (let i = 1; i < points.length; i++) ctxTarget.lineTo(points[i].x, points[i].y);
+                return;
+            }
+            let hasManualCurves = points.some(p => (p.f_hx || p.f_hy || p.b_hx || p.b_hy));
+            if (hasManualCurves || radius === 0) {
+                ctxTarget.moveTo(points[0].x, points[0].y);
+                for (let i = 1; i <= points.length; i++) {
+                    let p1 = points[i - 1];
+                    let p2 = points[i % points.length]; 
+                    let cp1x = p1.x + (p1.f_hx || 0);
+                    let cp1y = p1.y + (p1.f_hy || 0);
+                    let cp2x = p2.x + (p2.b_hx || 0);
+                    let cp2y = p2.y + (p2.b_hy || 0);
+                    ctxTarget.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+                }
+                ctxTarget.closePath();
+            } else {
+                let safeRadii = [];
+                for (let i = 0; i < points.length; i++) {
+                    let p1 = points[(i - 1 + points.length) % points.length];
+                    let p2 = points[i];
+                    let p3 = points[(i + 1) % points.length];
+                    let len1 = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+                    let len2 = Math.hypot(p3.x - p2.x, p3.y - p2.y);
+                    safeRadii.push(Math.min(radius, len1 / 2, len2 / 2));
+                }
+                let p1 = points[points.length - 1];
+                let p2 = points[0];
+                let len1 = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+                let startVectorX = (p1.x - p2.x) / len1;
+                let startVectorY = (p1.y - p2.y) / len1;
+                let firstRadius = safeRadii[0];
+                
+                ctxTarget.moveTo(p2.x + startVectorX * firstRadius, p2.y + startVectorY * firstRadius);
+                for (let i = 0; i < points.length; i++) {
+                    let currentPoint = points[i];
+                    let nextPoint = points[(i + 1) % points.length];
+                    ctxTarget.arcTo(currentPoint.x, currentPoint.y, nextPoint.x, nextPoint.y, safeRadii[i]);
+                }
+                ctxTarget.closePath();
+            }
+        }
+
+        function drawAreaMaskAndBorder(ctxTarget, points, zoom, sx, sy, sw, sh) {
+            ctxTarget.save();
+            if (points.length >= 3) {
+                ctxTarget.beginPath();
+                ctxTarget.rect(sx - 2000, sy - 2000, sw + 4000, sh + 4000); 
+                buildAreaPath(ctxTarget, points, state.cornerRadius); 
+                ctxTarget.fillStyle = `rgba(0, 0, 0, ${state.maskOpacity})`;
+                ctxTarget.fill('evenodd'); 
+            }
+            
+            ctxTarget.beginPath();
+            buildAreaPath(ctxTarget, points, state.cornerRadius);
+            if (points.length >= 3) {
+                if (state.areaGlowEnabled) {
+                    ctxTarget.shadowColor = state.areaGlowColor;
+                    ctxTarget.shadowBlur = 15;
+                } else {
+                    ctxTarget.shadowBlur = 0;
+                }
+                ctxTarget.strokeStyle = state.areaColor;
+                ctxTarget.lineWidth = 4 / zoom;
+                ctxTarget.lineJoin = 'round';
+                ctxTarget.stroke();
+                if (state.areaLineStyle === 'warning') {
+                    ctxTarget.shadowBlur = 0; 
+                    ctxTarget.strokeStyle = '#000000';
+                    ctxTarget.setLineDash([15 / zoom, 15 / zoom]);
+                    ctxTarget.stroke();
+                    ctxTarget.setLineDash([]); 
+                }
+            } else {
+                ctxTarget.strokeStyle = state.areaColor;
+                ctxTarget.lineWidth = 4 / zoom;
+                ctxTarget.setLineDash([10 / zoom, 10 / zoom]);
+                ctxTarget.stroke();
+                ctxTarget.setLineDash([]); 
+            }
+
+            if (state.activeMode === 'area' && rcDraw.mode === 'bezier' && rcDraw.tempNode) {
+                ctxTarget.beginPath();
+                ctxTarget.moveTo(rcDraw.tempNode.x, rcDraw.tempNode.y);
+                ctxTarget.lineTo(rcDraw.tempNode.x + rcDraw.tempNode.f_hx, rcDraw.tempNode.y + rcDraw.tempNode.f_hy);
+                ctxTarget.strokeStyle = 'rgba(255,255,255,0.8)';
+                ctxTarget.lineWidth = 2 / zoom;
+                ctxTarget.setLineDash([5/zoom, 5/zoom]);
+                ctxTarget.stroke();
+                ctxTarget.setLineDash([]);
+            }
+
+            ctxTarget.shadowBlur = 0;
+            points.forEach((p, index) => {
+                if (!state.showAuxNodes && index !== state.selectedAreaNodeIndex && index !== state.draggedAreaNodeIndex) return;
+                
+                if (index === state.selectedAreaNodeIndex && state.activeMode !== 'screenshot') drawBezierHandles(ctxTarget, p, zoom);
+                const nodeRadius = 8 / zoom;
+                ctxTarget.beginPath();
+                ctxTarget.arc(p.x, p.y, nodeRadius, 0, Math.PI * 2);
+                if (state.draggedAreaNodeIndex === index && index < state.areaPoints.length) {
+                    ctxTarget.fillStyle = '#ff0000'; 
+                } else if (state.selectedAreaNodeIndex === index) {
+                    ctxTarget.fillStyle = '#ff9ef7'; 
+                } else {
+                    ctxTarget.fillStyle = 'rgba(255, 255, 255, 0.9)'; 
+                }
+                ctxTarget.fill();
+                ctxTarget.lineWidth = 2 / zoom;
+                ctxTarget.strokeStyle = '#1a1a1a';
+                ctxTarget.stroke();
+            });
+            ctxTarget.restore();
+        }
+
+        function drawRouteAndPreview(ctxTarget, pointsToDraw, zoom) {
+            ctxTarget.save();
+            ctxTarget.lineJoin = 'round';
+            ctxTarget.lineCap = 'round';
+            ctxTarget.beginPath();
+            ctxTarget.moveTo(pointsToDraw[0].x, pointsToDraw[0].y);
+            for (let i = 1; i < pointsToDraw.length; i++) {
+                let p1 = pointsToDraw[i-1];
+                let p2 = pointsToDraw[i];
+                let cp1x = p1.x + (p1.f_hx || 0);
+                let cp1y = p1.y + (p1.f_hy || 0);
+                let cp2x = p2.x + (p2.b_hx || 0);
+                let cp2y = p2.y + (p2.b_hy || 0);
+                ctxTarget.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+            }
+            ctxTarget.strokeStyle = state.routeColor;
+            ctxTarget.lineWidth = 6 / zoom;
+            ctxTarget.shadowColor = state.routeColor;
+            ctxTarget.shadowBlur = 15;
+            ctxTarget.stroke();
+            ctxTarget.shadowBlur = 0;
+            ctxTarget.lineWidth = 4 / zoom;
+            ctxTarget.stroke();
+
+            if (state.activeMode === 'route' && rcDraw.mode === 'bezier' && rcDraw.tempNode) {
+                ctxTarget.beginPath();
+                ctxTarget.moveTo(rcDraw.tempNode.x, rcDraw.tempNode.y);
+                ctxTarget.lineTo(rcDraw.tempNode.x + rcDraw.tempNode.f_hx, rcDraw.tempNode.y + rcDraw.tempNode.f_hy);
+                ctxTarget.strokeStyle = 'rgba(255,255,255,0.8)';
+                ctxTarget.lineWidth = 2 / zoom;
+                ctxTarget.setLineDash([5/zoom, 5/zoom]);
+                ctxTarget.stroke();
+                ctxTarget.setLineDash([]);
+            }
+
+            let displayNum = 1; 
+            pointsToDraw.forEach((p, index) => {
+                if (index === state.selectedRouteNodeIndex && state.activeMode !== 'screenshot') drawBezierHandles(ctxTarget, p, zoom);
+                
+                if (p.isHidden) {
+                    if (!state.showAuxNodes && index !== state.selectedRouteNodeIndex && index !== state.draggedRouteNodeIndex) return;
+                    
+                    const nodeRadius = 6 / zoom;
+                    ctxTarget.beginPath();
+                    ctxTarget.arc(p.x, p.y, nodeRadius, 0, Math.PI * 2);
+                    ctxTarget.fillStyle = state.draggedRouteNodeIndex === index ? '#ff0000' : 'rgba(255, 255, 255, 0.5)';
+                    ctxTarget.fill();
+                    ctxTarget.lineWidth = 1.5 / zoom;
+                    ctxTarget.strokeStyle = state.routeColor;
+                    ctxTarget.stroke();
+                } else {
+                    const nodeRadius = 12 / zoom;
+                    ctxTarget.beginPath();
+                    ctxTarget.arc(p.x, p.y, nodeRadius, 0, Math.PI * 2);
+                    if (state.draggedRouteNodeIndex === index && index < state.routePoints.length) {
+                        ctxTarget.fillStyle = '#ff0000'; 
+                    } else if (state.selectedRouteNodeIndex === index) {
+                        ctxTarget.fillStyle = '#ff9ef7'; 
+                    } else {
+                        ctxTarget.fillStyle = state.routeColor;
+                    }
+                    ctxTarget.fill();
+                    ctxTarget.lineWidth = 2 / zoom;
+                    ctxTarget.strokeStyle = '#1a1a1a';
+                    ctxTarget.stroke();
+                    
+                    ctxTarget.fillStyle = (state.draggedRouteNodeIndex === index && index < state.routePoints.length) ? '#ffffff' : '#1a1a1a';
+                    ctxTarget.font = `bold ${14 / zoom}px Arial`;
+                    ctxTarget.textAlign = 'center';
+                    ctxTarget.textBaseline = 'middle';
+                    ctxTarget.fillText(displayNum, p.x, p.y + (1 / zoom));
+                    displayNum++; 
+                }
+            });
+            ctxTarget.restore();
+        }
+
+        // --- 截圖核心演算法 (動態壓縮，防止大圖 OOM) ---
+        function generateScreenshot() {
+            if (!state.isReady) return;
+
+            let rx = Math.min(state.screenRectStart.x, state.screenRectEnd.x);
+            let ry = Math.min(state.screenRectStart.y, state.screenRectEnd.y);
+            let rw = Math.abs(state.screenRectEnd.x - state.screenRectStart.x);
+            let rh = Math.abs(state.screenRectEnd.y - state.screenRectStart.y);
+
+            if (rw < 10 || rh < 10) {
+                showToast("截圖範圍太小，請重新框選");
+                setMode('idle');
+                return;
+            }
+
+            let worldX = (rx - state.panX) / state.zoom;
+            let worldY = (ry - state.panY) / state.zoom;
+            let worldW = rw / state.zoom;
+            let worldH = rh / state.zoom;
+
+            // 限制最大寬高為 4096，避免大圖導致瀏覽器 Canvas 記憶體崩潰
+            const MAX_DIM = 4096;
+            let captureZoom = 1; // 預設使用 1:1 原始畫質
+            
+            // 如果框選的世界範圍太大，自動縮小截圖比例以策安全
+            if (worldW > MAX_DIM || worldH > MAX_DIM) {
+                captureZoom = MAX_DIM / Math.max(worldW, worldH);
+            }
+            
+            // 確保截圖畫質至少不會比使用者當前在螢幕上看到的還要模糊
+            captureZoom = Math.max(captureZoom, state.zoom);
+
+            const captureWidth = worldW * captureZoom;
+            const captureHeight = worldH * captureZoom;
+
+            showToast(`📸 正在渲染高畫質圖片 (${Math.round(captureWidth)}x${Math.round(captureHeight)})...`);
+
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = captureWidth;
+            tempCanvas.height = captureHeight;
+            const tempCtx = tempCanvas.getContext('2d');
+
+            const tempPanX = -worldX * captureZoom;
+            const tempPanY = -worldY * captureZoom;
+
+            drawScene(tempCtx, captureWidth, captureHeight, tempPanX, tempPanY, captureZoom);
+
+            try {
+                const dataUrl = tempCanvas.toDataURL('image/png');
+                document.getElementById('screenshot-preview-img').src = dataUrl;
+                document.getElementById('btn-download-screenshot').href = dataUrl;
+                document.getElementById('screenshot-modal').classList.remove('hidden');
+            } catch (err) {
+                showToast("❌ 截圖失敗：預設圖床受瀏覽器安全限制。請在左側選單「更換主地圖」上傳本地圖檔即可解鎖截圖功能！");
+                console.error(err);
+            }
+            setMode('idle');
+        }
+
+        // --- 事件與 UI 綁定 ---
+        function screenToWorld(x, y) {
+            return { x: (x - state.targetPanX) / state.zoom, y: (y - state.targetPanY) / state.zoom };
+        }
+
+        function bindUIEvents() {
+            sidebarToggle.addEventListener('click', () => {
+                sidebar.classList.toggle('closed');
+                sidebarToggle.innerText = sidebar.classList.contains('closed') ? '▶' : '◀';
+            });
+
+            document.getElementById('btn-start-screenshot').addEventListener('click', () => {
+                sidebar.classList.add('closed');
+                sidebarToggle.innerText = '▶';
+                setMode('screenshot');
+            });
+
+            document.getElementById('btn-cancel-screenshot').addEventListener('click', () => {
+                document.getElementById('screenshot-modal').classList.add('hidden');
+                document.getElementById('screenshot-preview-img').src = "";
+            });
+
+            const uploadMainInput = document.getElementById('upload-main-map-input');
+            const uploadSubInput = document.getElementById('upload-sub-map-input');
+            
+            document.getElementById('btn-upload-main-map').addEventListener('click', () => uploadMainInput.click());
+            document.getElementById('btn-upload-sub-map').addEventListener('click', () => uploadSubInput.click());
+
+            uploadMainInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                document.getElementById('loading').style.display = 'flex';
+                document.getElementById('loading-text').innerText = '正在處理並解碼大圖，請稍候...';
+                
+                mainMapImg.onload = () => {
+                    document.getElementById('loading').style.display = 'none';
+                    state.targetZoom = state.zoom = window.innerHeight / mainMapImg.height;
+                    state.targetPanX = state.panX = (window.innerWidth - (mainMapImg.width * state.zoom)) / 2;
+                    state.targetPanY = state.panY = 0;
+                    
+                    showToast(`✅ 主地圖已更新 (已解鎖高畫質截圖)`);
+                    requestRender();
+                };
+                mainMapImg.onerror = () => {
+                    document.getElementById('loading').style.display = 'none';
+                    showToast("❌ 本地地圖解析失敗");
+                };
+
+                mainMapImg.src = URL.createObjectURL(file);
+                uploadMainInput.value = '';
+            });
+
+            uploadSubInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                document.getElementById('loading').style.display = 'flex';
+                document.getElementById('loading-text').innerText = '處理副地圖中...';
+
+                subMapImg.onload = () => {
+                    document.getElementById('loading').style.display = 'none';
+                    showToast(`✅ 副地圖已更新`);
+                    requestRender();
+                };
+                subMapImg.onerror = () => {
+                    document.getElementById('loading').style.display = 'none';
+                    showToast("❌ 副地圖解析失敗");
+                };
+
+                subMapImg.src = URL.createObjectURL(file);
+                uploadSubInput.value = '';
+            });
+
+            document.getElementById('btn-clear-route').addEventListener('click', () => { state.routePoints = []; state.selectedRouteNodeIndex = -1; requestRender(); });
+            document.getElementById('btn-clear-area').addEventListener('click', () => { state.areaPoints = []; state.selectedAreaNodeIndex = -1; requestRender(); });
+            document.getElementById('input-route-color').addEventListener('input', (e) => { state.routeColor = e.target.value; requestRender(); });
+            document.getElementById('input-area-color').addEventListener('input', (e) => { state.areaColor = e.target.value; requestRender(); });
+            document.getElementById('input-area-style').addEventListener('change', (e) => { state.areaLineStyle = e.target.value; requestRender(); });
+            document.getElementById('input-area-glow-enabled').addEventListener('change', (e) => { state.areaGlowEnabled = e.target.checked; requestRender(); });
+            document.getElementById('input-area-glow-color').addEventListener('input', (e) => { state.areaGlowColor = e.target.value; requestRender(); });
+            
+            document.getElementById('input-show-aux-nodes').addEventListener('change', (e) => { 
+                state.showAuxNodes = e.target.checked; 
+                requestRender(); 
+            });
+
+            document.getElementById('input-radius').addEventListener('input', (e) => {
+                state.cornerRadius = parseInt(e.target.value);
+                document.getElementById('radius-val').innerText = state.cornerRadius + 'px';
+                requestRender();
+            });
+            document.getElementById('input-opacity').addEventListener('input', (e) => {
+                state.maskOpacity = parseInt(e.target.value) / 100;
+                document.getElementById('opacity-val').innerText = e.target.value + '%';
+                requestRender();
+            });
+
+            const modal = document.getElementById('save-modal');
+            const planInput = document.getElementById('plan-name-input');
+            document.getElementById('btn-save-plan').addEventListener('click', () => {
+                if (state.routePoints.length === 0 && state.areaPoints.length === 0) return showToast("請先繪製再儲存");
+                modal.classList.remove('hidden'); planInput.value = ''; planInput.focus();
+            });
+            document.getElementById('btn-cancel-save').addEventListener('click', () => modal.classList.add('hidden'));
+            document.getElementById('btn-confirm-save').addEventListener('click', () => {
+                const name = planInput.value.trim();
+                if (!name) return showToast("檔案名稱不可為空白");
+                modal.classList.add('hidden');
+                savePlanToFirestore(name);
+            });
+
+            const transferModal = document.getElementById('transfer-modal');
+            const fileInput = document.getElementById('import-file-input');
+            const transferTitle = document.getElementById('transfer-modal-title');
+            const transferList = document.getElementById('transfer-checklist');
+            const selectAllCheck = document.getElementById('transfer-select-all');
+            
+            document.getElementById('btn-export').addEventListener('click', () => {
+                if(state.currentPlans.length === 0) return showToast("雲端尚無存檔可匯出");
+                transferMode = 'export';
+                transferTitle.innerText = '選擇要匯出的資料';
+                renderTransferChecklist(state.currentPlans);
+                transferModal.classList.remove('hidden');
+            });
+
+            document.getElementById('btn-import').addEventListener('click', () => fileInput.click());
+            
+            fileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    try {
+                        const parsed = JSON.parse(ev.target.result);
+                        if(Array.isArray(parsed) && parsed.length > 0) {
+                            pendingImportData = parsed;
+                            transferMode = 'import';
+                            transferTitle.innerText = '選擇要匯入的資料';
+                            renderTransferChecklist(pendingImportData);
+                            transferModal.classList.remove('hidden');
+                        } else {
+                            showToast("JSON 檔案格式錯誤或無資料");
+                        }
+                    } catch(err) {
+                        showToast("解析 JSON 失敗");
+                    }
+                    fileInput.value = ''; 
+                };
+                reader.readAsText(file);
+            });
+
+            function renderTransferChecklist(plansArray) {
+                transferList.innerHTML = '';
+                selectAllCheck.checked = true;
+                plansArray.forEach((plan, idx) => {
+                    const id = `chk-${idx}`;
+                    const div = document.createElement('div');
+                    div.className = 'flex items-center gap-2 text-sm';
+                    div.innerHTML = `
+                        <input type="checkbox" id="${id}" class="transfer-chk accent-[#ff9ef7]" checked data-index="${idx}">
+                        <label for="${id}" class="cursor-pointer flex-1 truncate" title="${plan.name || '未命名'}">${plan.name || '未命名'}</label>
+                    `;
+                    transferList.appendChild(div);
+                });
+            }
+
+            selectAllCheck.addEventListener('change', (e) => {
+                document.querySelectorAll('.transfer-chk').forEach(chk => chk.checked = e.target.checked);
+            });
+
+            document.getElementById('btn-cancel-transfer').addEventListener('click', () => transferModal.classList.add('hidden'));
+            
+            document.getElementById('btn-confirm-transfer').addEventListener('click', async () => {
+                const checkedIndexes = Array.from(document.querySelectorAll('.transfer-chk:checked')).map(chk => parseInt(chk.dataset.index));
+                if (checkedIndexes.length === 0) return showToast("請至少選擇一筆資料");
+
+                if (transferMode === 'export') {
+                    const dataToExport = checkedIndexes.map(idx => state.currentPlans[idx]);
+                    const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: "application/json" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `Map_Plans_${new Date().toISOString().slice(0,10)}.json`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    showToast("✅ 已成功匯出檔案");
+                } 
+                else if (transferMode === 'import') {
+                    showToast("📥 匯入中，請稍候...");
+                    let successCount = 0;
+                    for (let idx of checkedIndexes) {
+                        let data = pendingImportData[idx];
+                        if (data && currentUser && db) {
+                            try {
+                                const plansCol = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'plans');
+                                await addDoc(plansCol, {
+                                    name: data.name || '匯入的存檔',
+                                    routePoints: upgradeLegacyPoints(data.routePoints || []),
+                                    routeColor: data.routeColor || '#ab66ff',
+                                    areaPoints: upgradeLegacyPoints(data.areaPoints || []),
+                                    areaColor: data.areaColor || '#ab66ff',
+                                    areaLineStyle: data.areaLineStyle || 'solid',
+                                    areaGlowEnabled: data.areaGlowEnabled !== undefined ? data.areaGlowEnabled : true,
+                                    areaGlowColor: data.areaGlowColor || '#ab66ff',
+                                    cornerRadius: data.cornerRadius || 20,
+                                    maskOpacity: data.maskOpacity || 0.6,
+                                    createdAt: Date.now()
+                                });
+                                successCount++;
+                            } catch(e) { console.error(e); }
+                        }
+                    }
+                    showToast(`✅ 成功匯入 ${successCount} 筆資料`);
+                }
+                transferModal.classList.add('hidden');
+            });
+
+            document.getElementById('ctx-route').addEventListener('click', () => setMode('route'));
+            document.getElementById('ctx-area').addEventListener('click', () => setMode('area'));
+            document.getElementById('ctx-finish').addEventListener('click', () => { setMode('idle'); showToast("🏁 已確認繪製終點！"); });
+            
+            window.addEventListener('keydown', e => {
+                if (e.key === 'Escape' && state.activeMode !== 'idle') {
+                    setMode('idle'); showToast("已退出當前操作"); requestRender();
+                }
+            });
+            document.addEventListener('click', e => {
+                if (e.button !== 2) { contextMenu.style.display = 'none'; finishMenu.style.display = 'none'; }
+            });
+        }
+
+        function bindCanvasEvents() {
+            const container = document.getElementById('canvas-container');
+
+            canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+            canvas.addEventListener('dblclick', (e) => {
+                if (state.activeMode === 'screenshot') return;
+                if (e.button !== 0) return; 
+                const worldPos = screenToWorld(e.clientX, e.clientY);
+                const hitRadiusRoute = 12 / state.zoom;
+                const hitRadiusArea = 12 / state.zoom;
+                let isDeleted = false;
+
+                for (let i = state.routePoints.length - 1; i >= 0; i--) {
+                    if (state.routePoints[i].isHidden && !state.showAuxNodes && i !== state.selectedRouteNodeIndex) continue;
+                    if (Math.hypot(state.routePoints[i].x - worldPos.x, state.routePoints[i].y - worldPos.y) <= hitRadiusRoute) {
+                        state.routePoints.splice(i, 1);
+                        if (state.selectedRouteNodeIndex === i) state.selectedRouteNodeIndex = -1;
+                        showToast(`已刪除路線節點`);
+                        isDeleted = true; break;
+                    }
+                }
+                if (!isDeleted) {
+                    for (let i = state.areaPoints.length - 1; i >= 0; i--) {
+                        if (!state.showAuxNodes && i !== state.selectedAreaNodeIndex) continue; 
+                        if (Math.hypot(state.areaPoints[i].x - worldPos.x, state.areaPoints[i].y - worldPos.y) <= hitRadiusArea) {
+                            state.areaPoints.splice(i, 1);
+                            if (state.selectedAreaNodeIndex === i) state.selectedAreaNodeIndex = -1;
+                            showToast(`已刪除範圍節點`);
+                            break;
+                        }
+                    }
+                }
+                requestRender();
+            });
+
+            canvas.addEventListener('mousedown', (e) => {
+                if(e.target !== canvas) return;
+                contextMenu.style.display = 'none';
+                finishMenu.style.display = 'none';
+
+                if (state.activeMode === 'screenshot') {
+                    if (e.button === 0) {
+                        state.isSelectingScreenshot = true;
+                        state.screenRectStart = {x: e.clientX, y: e.clientY};
+                        state.screenRectEnd = {x: e.clientX, y: e.clientY};
+                        requestRender();
+                    }
+                    return;
+                }
+
+                state.targetPanX = state.panX;
+                state.targetPanY = state.panY;
+
+                const worldPos = screenToWorld(e.clientX, e.clientY);
+
+                if (e.button === 0) { 
+                    let hitRouteIndex = -1, hitAreaIndex = -1;
+                    let hitRouteHandle = null, hitAreaHandle = null;
+                    const hitRadiusNode = 12 / state.zoom;
+                    const hitRadiusHandle = 8 / state.zoom;
+                    
+                    if (state.selectedRouteNodeIndex !== -1 && state.routePoints[state.selectedRouteNodeIndex]) {
+                        let p = state.routePoints[state.selectedRouteNodeIndex];
+                        if (p.f_hx || p.f_hy) {
+                            if (Math.hypot(p.x + p.f_hx - worldPos.x, p.y + p.f_hy - worldPos.y) <= hitRadiusHandle) { hitRouteHandle = 'forward'; hitRouteIndex = state.selectedRouteNodeIndex; }
+                        }
+                        if (!hitRouteHandle && (p.b_hx || p.b_hy)) {
+                            if (Math.hypot(p.x + p.b_hx - worldPos.x, p.y + p.b_hy - worldPos.y) <= hitRadiusHandle) { hitRouteHandle = 'backward'; hitRouteIndex = state.selectedRouteNodeIndex; }
+                        }
+                    }
+                    if (!hitRouteHandle && state.selectedAreaNodeIndex !== -1 && state.areaPoints[state.selectedAreaNodeIndex]) {
+                        let p = state.areaPoints[state.selectedAreaNodeIndex];
+                        if (p.f_hx || p.f_hy) {
+                            if (Math.hypot(p.x + p.f_hx - worldPos.x, p.y + p.f_hy - worldPos.y) <= hitRadiusHandle) { hitAreaHandle = 'forward'; hitAreaIndex = state.selectedAreaNodeIndex; }
+                        }
+                        if (!hitAreaHandle && (p.b_hx || p.b_hy)) {
+                            if (Math.hypot(p.x + p.b_hx - worldPos.x, p.y + p.b_hy - worldPos.y) <= hitRadiusHandle) { hitAreaHandle = 'backward'; hitAreaIndex = state.selectedAreaNodeIndex; }
+                        }
+                    }
+
+                    if (e.altKey && hitRouteHandle) {
+                        if (hitRouteHandle === 'forward') { state.routePoints[hitRouteIndex].f_hx = 0; state.routePoints[hitRouteIndex].f_hy = 0; }
+                        if (hitRouteHandle === 'backward') { state.routePoints[hitRouteIndex].b_hx = 0; state.routePoints[hitRouteIndex].b_hy = 0; }
+                        showToast("✂️ 已刪除單側控制桿"); requestRender(); return;
+                    }
+                    if (e.altKey && hitAreaHandle) {
+                        if (hitAreaHandle === 'forward') { state.areaPoints[hitAreaIndex].f_hx = 0; state.areaPoints[hitAreaIndex].f_hy = 0; }
+                        if (hitAreaHandle === 'backward') { state.areaPoints[hitAreaIndex].b_hx = 0; state.areaPoints[hitAreaIndex].b_hy = 0; }
+                        showToast("✂️ 已刪除單側控制桿"); requestRender(); return;
+                    }
+
+                    if (!hitRouteHandle && !hitAreaHandle) {
+                        for (let i = state.routePoints.length - 1; i >= 0; i--) {
+                            if (state.routePoints[i].isHidden && !state.showAuxNodes && i !== state.selectedRouteNodeIndex) continue;
+                            if (Math.hypot(state.routePoints[i].x - worldPos.x, state.routePoints[i].y - worldPos.y) <= hitRadiusNode) { hitRouteIndex = i; break; }
+                        }
+                        if (hitRouteIndex === -1) {
+                            for (let i = state.areaPoints.length - 1; i >= 0; i--) {
+                                if (!state.showAuxNodes && i !== state.selectedAreaNodeIndex) continue;
+                                if (Math.hypot(state.areaPoints[i].x - worldPos.x, state.areaPoints[i].y - worldPos.y) <= hitRadiusNode) { hitAreaIndex = i; break; }
+                            }
+                        }
+                    }
+
+                    if ((e.ctrlKey || e.metaKey) && hitRouteIndex !== -1 && !hitRouteHandle) {
+                        state.routePoints[hitRouteIndex].isHidden = !state.routePoints[hitRouteIndex].isHidden;
+                        state.selectedRouteNodeIndex = hitRouteIndex; 
+                        showToast(state.routePoints[hitRouteIndex].isHidden ? "👁️ 已切換為隱藏輔助點" : "👁️ 已恢復為顯示節點");
+                        requestRender();
+                        return;
+                    }
+
+                    if (e.altKey && hitRouteIndex !== -1 && !hitRouteHandle) {
+                        state.routePoints[hitRouteIndex].f_hx = 0; state.routePoints[hitRouteIndex].f_hy = 0;
+                        state.routePoints[hitRouteIndex].b_hx = 0; state.routePoints[hitRouteIndex].b_hy = 0;
+                        showToast("✂️ 已重置為銳角錨點"); requestRender(); return;
+                    }
+                    if (e.altKey && hitAreaIndex !== -1 && !hitAreaHandle) {
+                        state.areaPoints[hitAreaIndex].f_hx = 0; state.areaPoints[hitAreaIndex].f_hy = 0;
+                        state.areaPoints[hitAreaIndex].b_hx = 0; state.areaPoints[hitAreaIndex].b_hy = 0;
+                        showToast("✂️ 已重置為銳角錨點"); requestRender(); return;
+                    }
+
+                    if (hitRouteIndex !== -1) {
+                        state.selectedRouteNodeIndex = hitRouteIndex; 
+                        state.selectedAreaNodeIndex = -1; 
+                        state.draggedRouteNodeIndex = hitRouteIndex;
+                        state.draggedHandleType = hitRouteHandle; 
+                        if (e.shiftKey && !hitRouteHandle) { state.draggedHandleType = 'both'; showToast("✨ 正在拉出對稱控制桿"); }
+                        requestRender(); 
+                    } else if (hitAreaIndex !== -1) {
+                        state.selectedAreaNodeIndex = hitAreaIndex;
+                        state.selectedRouteNodeIndex = -1;
+                        state.draggedAreaNodeIndex = hitAreaIndex;
+                        state.draggedHandleType = hitAreaHandle;
+                        if (e.shiftKey && !hitAreaHandle) { state.draggedHandleType = 'both'; showToast("✨ 正在拉出對稱控制桿"); }
+                        requestRender();
+                    } else {
+                        state.selectedRouteNodeIndex = -1;
+                        state.selectedAreaNodeIndex = -1;
+                        state.isDraggingMap = true;
+                        state.dragStartX = e.clientX - state.targetPanX;
+                        state.dragStartY = e.clientY - state.targetPanY;
+                        state.lastPanTime = performance.now();
+                        state.lastPanX = state.targetPanX;
+                        state.lastPanY = state.targetPanY;
+                        state.panVelocityX = 0; state.panVelocityY = 0;
+                        container.classList.add('panning');
+                        requestRender();
+                    }
+                }
+                else if (e.button === 2) { 
+                    if (state.activeMode === 'idle') {
+                        contextMenu.style.left = e.clientX + 'px';
+                        contextMenu.style.top = e.clientY + 'px';
+                        contextMenu.style.display = 'flex';
+                    } else {
+                        const worldPos = screenToWorld(e.clientX, e.clientY);
+                        const hitRadius = 15 / state.zoom;
+                        let isLastHit = false;
+                        
+                        let pts = state.activeMode === 'route' ? state.routePoints : state.areaPoints;
+                        if (pts.length > 0) {
+                            let lastPt = pts[pts.length - 1];
+                            if (Math.hypot(lastPt.x - worldPos.x, lastPt.y - worldPos.y) <= hitRadius) {
+                                isLastHit = true;
+                            }
+                        }
+
+                        if (isLastHit) {
+                            finishMenu.style.left = e.clientX + 'px';
+                            finishMenu.style.top = e.clientY + 'px';
+                            finishMenu.style.display = 'flex';
+                            return; 
+                        }
+
+                        let hitSegRoute = getHitSegmentIndex(worldPos.x, worldPos.y, state.routePoints, false, state.zoom);
+                        if (state.activeMode === 'route' && hitSegRoute !== -1) {
+                            state.routePoints.splice(hitSegRoute + 1, 0, {x: worldPos.x, y: worldPos.y, f_hx: 0, f_hy: 0, b_hx: 0, b_hy: 0, isHidden: false});
+                            state.selectedRouteNodeIndex = hitSegRoute + 1; 
+                            showToast("✨ 已於路線上插入新節點");
+                            requestRender();
+                            return; 
+                        }
+                        
+                        let hitSegArea = getHitSegmentIndex(worldPos.x, worldPos.y, state.areaPoints, true, state.zoom);
+                        if (state.activeMode === 'area' && hitSegArea !== -1) {
+                            state.areaPoints.splice(hitSegArea + 1, 0, {x: worldPos.x, y: worldPos.y, f_hx: 0, f_hy: 0, b_hx: 0, b_hy: 0, isHidden: false});
+                            state.selectedAreaNodeIndex = hitSegArea + 1;
+                            showToast("✨ 已於邊界上插入新節點");
+                            requestRender();
+                            return;
+                        }
+
+                        rcDraw.isDown = true;
+                        rcDraw.startX = e.clientX;
+                        rcDraw.startY = e.clientY;
+                        rcDraw.worldStartX = worldPos.x;
+                        rcDraw.worldStartY = worldPos.y;
+                        rcDraw.mode = 'none';
+                        rcDraw.tempNode = { x: worldPos.x, y: worldPos.y, f_hx: 0, f_hy: 0, b_hx: 0, b_hy: 0, isHidden: false };
+                        
+                        rcDraw.timer = setTimeout(() => {
+                            if (rcDraw.mode === 'none') {
+                                rcDraw.mode = 'freehand';
+                                rcDraw.tempFreehandPoints = [worldPos];
+                                showToast("✏️ 進入自由繪圖，隨意滑動軌跡");
+                            }
+                        }, 300);
+                    }
+                }
+                else if (e.button === 1) { 
+                    if (state.activeMode === 'route' && state.routePoints.length > 0) state.routePoints.pop();
+                    else if (state.activeMode === 'area' && state.areaPoints.length > 0) state.areaPoints.pop();
+                    requestRender();
+                }
+            });
+
+            canvas.addEventListener('mousemove', (e) => {
+                if (state.activeMode === 'screenshot' && state.isSelectingScreenshot) {
+                    state.screenRectEnd = {x: e.clientX, y: e.clientY};
+                    requestRender();
+                    return;
+                }
+
+                const worldPos = screenToWorld(e.clientX, e.clientY);
+
+                if (!state.isDraggingMap && state.draggedRouteNodeIndex === -1 && state.draggedAreaNodeIndex === -1 && !rcDraw.isDown) {
+                    const hitRadiusNode = 12 / state.zoom;
+                    const hitRadiusHandle = 8 / state.zoom;
+                    let isHovering = false;
+                    
+                    if (state.selectedRouteNodeIndex !== -1 && state.routePoints[state.selectedRouteNodeIndex]) {
+                        let p = state.routePoints[state.selectedRouteNodeIndex];
+                        if (p.f_hx || p.f_hy) if (Math.hypot(p.x + p.f_hx - worldPos.x, p.y + p.f_hy - worldPos.y) <= hitRadiusHandle) isHovering = true;
+                        if (p.b_hx || p.b_hy) if (Math.hypot(p.x + p.b_hx - worldPos.x, p.y + p.b_hy - worldPos.y) <= hitRadiusHandle) isHovering = true;
+                    }
+                    if (!isHovering && state.selectedAreaNodeIndex !== -1 && state.areaPoints[state.selectedAreaNodeIndex]) {
+                        let p = state.areaPoints[state.selectedAreaNodeIndex];
+                        if (p.f_hx || p.f_hy) if (Math.hypot(p.x + p.f_hx - worldPos.x, p.y + p.f_hy - worldPos.y) <= hitRadiusHandle) isHovering = true;
+                        if (p.b_hx || p.b_hy) if (Math.hypot(p.x + p.b_hx - worldPos.x, p.y + p.b_hy - worldPos.y) <= hitRadiusHandle) isHovering = true;
+                    }
+                    if (!isHovering) {
+                        for (let i = 0; i < state.routePoints.length; i++) {
+                            if (state.routePoints[i].isHidden && !state.showAuxNodes && i !== state.selectedRouteNodeIndex) continue;
+                            if (Math.hypot(state.routePoints[i].x - worldPos.x, state.routePoints[i].y - worldPos.y) <= hitRadiusNode) { isHovering = true; break; }
+                        }
+                    }
+                    if (!isHovering) {
+                        for (let i = 0; i < state.areaPoints.length; i++) {
+                            if (!state.showAuxNodes && i !== state.selectedAreaNodeIndex) continue;
+                            if (Math.hypot(state.areaPoints[i].x - worldPos.x, state.areaPoints[i].y - worldPos.y) <= hitRadiusNode) { isHovering = true; break; }
+                        }
+                    }
+                    if (!isHovering && state.activeMode === 'route') {
+                        if (getHitSegmentIndex(worldPos.x, worldPos.y, state.routePoints, false, state.zoom) !== -1) isHovering = true;
+                    }
+                    if (!isHovering && state.activeMode === 'area') {
+                        if (getHitSegmentIndex(worldPos.x, worldPos.y, state.areaPoints, true, state.zoom) !== -1) isHovering = true;
+                    }
+
+                    if (isHovering) container.classList.add('pointer');
+                    else if (state.activeMode === 'screenshot') container.classList.add('crosshair');
+                    else { container.classList.remove('pointer'); container.classList.remove('crosshair'); }
+                }
+
+                if (state.draggedRouteNodeIndex !== -1) {
+                    let p = state.routePoints[state.draggedRouteNodeIndex];
+                    if (state.draggedHandleType === 'forward') { 
+                        p.f_hx = worldPos.x - p.x; p.f_hy = worldPos.y - p.y; 
+                    } else if (state.draggedHandleType === 'backward') { 
+                        p.b_hx = worldPos.x - p.x; p.b_hy = worldPos.y - p.y; 
+                    } else if (state.draggedHandleType === 'both') {
+                        p.f_hx = worldPos.x - p.x; p.f_hy = worldPos.y - p.y;
+                        p.b_hx = -p.f_hx; p.b_hy = -p.f_hy;
+                    } else { 
+                        p.x = worldPos.x; p.y = worldPos.y; 
+                    }
+                    requestRender();
+                }
+                else if (state.draggedAreaNodeIndex !== -1) {
+                    let p = state.areaPoints[state.draggedAreaNodeIndex];
+                    if (state.draggedHandleType === 'forward') { 
+                        p.f_hx = worldPos.x - p.x; p.f_hy = worldPos.y - p.y; 
+                    } else if (state.draggedHandleType === 'backward') { 
+                        p.b_hx = worldPos.x - p.x; p.b_hy = worldPos.y - p.y; 
+                    } else if (state.draggedHandleType === 'both') {
+                        p.f_hx = worldPos.x - p.x; p.f_hy = worldPos.y - p.y;
+                        p.b_hx = -p.f_hx; p.b_hy = -p.f_hy;
+                    } else { 
+                        p.x = worldPos.x; p.y = worldPos.y; 
+                    }
+                    requestRender();
+                }
+                else if (state.isDraggingMap) {
+                    state.targetPanX = e.clientX - state.dragStartX;
+                    state.targetPanY = e.clientY - state.dragStartY;
+                    
+                    let now = performance.now();
+                    let dt = now - state.lastPanTime;
+                    if (dt > 0 && dt < 100) { 
+                        state.panVelocityX = (state.targetPanX - state.lastPanX) / dt;
+                        state.panVelocityY = (state.targetPanY - state.lastPanY) / dt;
+                    }
+                    state.lastPanX = state.targetPanX;
+                    state.lastPanY = state.targetPanY;
+                    state.lastPanTime = now;
+
+                    requestRender();
+                }
+
+                if (rcDraw.isDown) {
+                    let dist = Math.hypot(e.clientX - rcDraw.startX, e.clientY - rcDraw.startY);
+                    if (rcDraw.mode === 'none' && dist > 5) {
+                        clearTimeout(rcDraw.timer); rcDraw.mode = 'bezier';
+                    }
+
+                    if (rcDraw.mode === 'bezier') {
+                        rcDraw.tempNode.f_hx = worldPos.x - rcDraw.worldStartX;
+                        rcDraw.tempNode.f_hy = worldPos.y - rcDraw.worldStartY;
+                        rcDraw.tempNode.b_hx = -rcDraw.tempNode.f_hx;
+                        rcDraw.tempNode.b_hy = -rcDraw.tempNode.f_hy;
+                        requestRender();
+                    } 
+                    else if (rcDraw.mode === 'freehand') {
+                        let lastPt = rcDraw.tempFreehandPoints[rcDraw.tempFreehandPoints.length - 1];
+                        if (Math.hypot(worldPos.x - lastPt.x, worldPos.y - lastPt.y) > 5 / state.zoom) {
+                            rcDraw.tempFreehandPoints.push(worldPos);
+                            requestRender();
+                        }
+                    }
+                }
+            });
+
+            const endDrag = (e) => {
+                if (state.activeMode === 'screenshot' && state.isSelectingScreenshot) {
+                    state.isSelectingScreenshot = false;
+                    generateScreenshot();
+                    return;
+                }
+
+                if (e.button === 0) { 
+                    if (state.draggedRouteNodeIndex !== -1) { state.draggedRouteNodeIndex = -1; state.draggedHandleType = null; requestRender(); }
+                    if (state.draggedAreaNodeIndex !== -1) { state.draggedAreaNodeIndex = -1; state.draggedHandleType = null; requestRender(); }
+                    if (state.isDraggingMap) {
+                        state.isDraggingMap = false;
+                        container.classList.remove('panning');
+                        let timeSinceLastMove = performance.now() - state.lastPanTime;
+                        if (timeSinceLastMove < 50) { 
+                            const momentumFactor = 200; 
+                            state.targetPanX += state.panVelocityX * momentumFactor;
+                            state.targetPanY += state.panVelocityY * momentumFactor;
+                        }
+                        requestRender(); 
+                    }
+                }
+                
+                if (e.button === 2 && rcDraw.isDown) {
+                    rcDraw.isDown = false;
+                    clearTimeout(rcDraw.timer);
+
+                    if (rcDraw.mode === 'none') {
+                        rcDraw.tempNode.f_hx = 0; rcDraw.tempNode.f_hy = 0; rcDraw.tempNode.b_hx = 0; rcDraw.tempNode.b_hy = 0;
+                        addDrawingNode(rcDraw.tempNode);
+                    } else if (rcDraw.mode === 'bezier') {
+                        addDrawingNode(rcDraw.tempNode);
+                    } else if (rcDraw.mode === 'freehand') {
+                        let simplified = simplifyDP(rcDraw.tempFreehandPoints, 8 / state.zoom);
+                        let bezierConverted = convertFreehandToBezier(simplified);
+                        
+                        if (state.activeMode === 'route') {
+                            state.routePoints.push(...bezierConverted);
+                            state.selectedRouteNodeIndex = state.routePoints.length - 1;
+                        } else if (state.activeMode === 'area') {
+                            state.areaPoints.push(...bezierConverted);
+                            state.selectedAreaNodeIndex = state.areaPoints.length - 1;
+                        }
+                        showToast("✨ 軌跡已自動抽稀並平滑優化");
+                    }
+
+                    rcDraw.tempNode = null;
+                    rcDraw.tempFreehandPoints = [];
+                    requestRender();
+                }
+            };
+            canvas.addEventListener('mouseup', endDrag);
+            canvas.addEventListener('mouseleave', endDrag); 
+
+            canvas.addEventListener('wheel', (e) => {
+                if(e.target !== canvas || state.activeMode === 'screenshot') return;
+                e.preventDefault(); 
+                
+                const zoomFactor = 1.1;
+                const direction = e.deltaY > 0 ? -1 : 1;
+                let newZoom = direction > 0 ? state.zoom * zoomFactor : state.zoom / zoomFactor;
+                newZoom = Math.max(0.1, Math.min(newZoom, 10));
+
+                const worldX = (e.clientX - state.panX) / state.zoom;
+                const worldY = (e.clientY - state.panY) / state.zoom;
+                
+                state.panX = state.targetPanX = e.clientX - worldX * newZoom;
+                state.panY = state.targetPanY = e.clientY - worldY * newZoom;
+                state.zoom = newZoom;
+                
+                requestRender();
+            }, { passive: false });
+        }
+
+        function addDrawingNode(node) {
+            if (state.activeMode === 'route') {
+                state.routePoints.push({x: node.x, y: node.y, f_hx: node.f_hx, f_hy: node.f_hy, b_hx: node.b_hx, b_hy: node.b_hy, isHidden: false});
+                state.selectedRouteNodeIndex = state.routePoints.length - 1;
+            } else if (state.activeMode === 'area') {
+                state.areaPoints.push({x: node.x, y: node.y, f_hx: node.f_hx, f_hy: node.f_hy, b_hx: node.b_hx, b_hy: node.b_hy, isHidden: false});
+                state.selectedAreaNodeIndex = state.areaPoints.length - 1;
+            }
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
