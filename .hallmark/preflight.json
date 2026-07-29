@@ -1,0 +1,12 @@
+{
+  "date": "2026-07-29",
+  "font_stack": "Noto Sans TC",
+  "palette": {
+    "paper": "#0f0f13",
+    "card": "#1a1a24",
+    "accent": "#ff9ef7"
+  },
+  "motion": "CSS transitions only",
+  "spacing": "Tailwind default 4-point scale",
+  "framework": "Vanilla HTML with Tailwind CDN"
+}
