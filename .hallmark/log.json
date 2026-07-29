@@ -4,6 +4,13 @@
     "macrostructure": "Tool Workbench",
     "theme": "studied-DNA",
     "enrichment": "none",
+    "brief": "Add an item composition safe-area guide and configurable export dimensions."
+  },
+  {
+    "date": "2026-07-29",
+    "macrostructure": "Tool Workbench",
+    "theme": "studied-DNA",
+    "enrichment": "none",
     "brief": "Integrate the 100×100 image tool into the existing GTARP tool library."
   }
 ]
