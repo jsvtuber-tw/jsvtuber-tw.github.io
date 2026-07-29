@@ -1,0 +1,178 @@
+/* Hallmark · shared tool surface · genre: dark utility · theme: studied-DNA
+ * states: default · hover · focus · active · disabled · loading · error · success
+ * contrast: pass
+ */
+:root {
+  --j5-paper: #0f0f13;
+  --j5-panel: #17171f;
+  --j5-card: #1a1a24;
+  --j5-raised: #242431;
+  --j5-accent: #ff9ef7;
+  --j5-accent-dark: #e181da;
+  --j5-accent-soft: rgba(255, 158, 247, 0.12);
+  --j5-accent-glow: rgba(255, 158, 247, 0.24);
+  --j5-ink: #f5f3f6;
+  --j5-muted: #a9a4b0;
+  --j5-rule: #343140;
+  --j5-success: #6ee7a8;
+  --j5-error: #fb7185;
+  --j5-radius-sm: 0.5rem;
+  --j5-radius-md: 0.75rem;
+  --j5-radius-lg: 1rem;
+  --j5-shadow: 0 18px 48px rgba(0, 0, 0, 0.42);
+  --j5-ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+html {
+  background: var(--j5-paper);
+}
+
+body {
+  background-color: var(--j5-paper) !important;
+  background-image: radial-gradient(circle at 50% 0%, var(--j5-accent-soft), transparent 46%) !important;
+  color: var(--j5-ink) !important;
+  font-family: "Noto Sans TC", "Segoe UI", sans-serif !important;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--j5-paper) !important;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--j5-rule) !important;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--j5-accent) !important;
+}
+
+#sidebar,
+aside,
+.sidebar {
+  background-color: rgba(23, 23, 31, 0.96) !important;
+  border-color: var(--j5-rule) !important;
+  box-shadow: var(--j5-shadow) !important;
+  backdrop-filter: blur(14px);
+}
+
+#status-bar,
+.panel,
+.card,
+[class*="bg-neutral-9"],
+[class*="bg-slate-9"],
+[class*="bg-slate-8"] {
+  background-color: var(--j5-card) !important;
+  border-color: var(--j5-rule) !important;
+}
+
+#loading {
+  background-color: var(--j5-paper) !important;
+  color: var(--j5-accent) !important;
+  text-shadow: 0 0 18px var(--j5-accent-glow) !important;
+}
+
+.theme-bg,
+.bg-theme,
+.btn,
+#sidebar-toggle,
+[class*="bg-blue-"],
+[class*="bg-indigo-"],
+[class*="bg-pink-"] {
+  background-color: var(--j5-accent) !important;
+  color: var(--j5-paper) !important;
+}
+
+.theme-text,
+.text-theme,
+[class*="text-blue-"],
+[class*="text-indigo-"],
+[class*="text-pink-"] {
+  color: var(--j5-accent) !important;
+}
+
+.theme-border,
+.border-theme,
+.border-theme-strong,
+[class*="border-blue-"],
+[class*="border-indigo-"],
+[class*="border-pink-"] {
+  border-color: var(--j5-accent) !important;
+}
+
+button,
+.btn,
+input,
+textarea,
+select {
+  border-radius: var(--j5-radius-sm) !important;
+  transition: transform 160ms var(--j5-ease), border-color 160ms var(--j5-ease), background-color 160ms var(--j5-ease), color 160ms var(--j5-ease), opacity 160ms var(--j5-ease) !important;
+}
+
+input:not([type="range"]):not([type="color"]):not([type="checkbox"]),
+textarea,
+select {
+  background-color: var(--j5-paper) !important;
+  border: 1px solid var(--j5-rule) !important;
+  color: var(--j5-ink) !important;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--j5-accent) !important;
+  outline: none !important;
+  box-shadow: 0 0 0 3px var(--j5-accent-soft) !important;
+}
+
+button:hover:not(:disabled),
+.btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+button:focus-visible,
+.btn:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 3px solid var(--j5-accent) !important;
+  outline-offset: 3px !important;
+}
+
+button:active:not(:disabled),
+.btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+button:disabled,
+.btn:disabled {
+  cursor: not-allowed !important;
+  opacity: 0.48 !important;
+}
+
+input[type="range"],
+input[type="checkbox"] {
+  accent-color: var(--j5-accent) !important;
+}
+
+.rounded,
+.rounded-lg,
+.rounded-xl,
+.rounded-2xl {
+  border-radius: var(--j5-radius-md) !important;
+}
+
+.shadow-theme,
+.shadow-theme-glow,
+[class*="shadow-"] {
+  --tw-shadow-color: var(--j5-accent-glow) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 50ms !important;
+    animation-duration: 50ms !important;
+  }
+}
