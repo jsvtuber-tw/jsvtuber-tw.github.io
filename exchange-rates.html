@@ -71,7 +71,7 @@
     const $=id=>document.getElementById(id);
     const t=(key,values={})=>Object.entries(values).reduce((text,[name,value])=>text.replaceAll(`{${name}}`,value),I18N[lang][key]||key);
     const currencyName=code=>lang==="en"?CURRENCIES[code].en:CURRENCIES[code].name;
-    const format=(value,code)=>new Intl.NumberFormat(lang==="en"?"en-US":"zh-TW",{maximumFractionDigits:["JPY","KRW"].includes(code)?0:4}).format(value);
+    const format=(value,code)=>new Intl.NumberFormat(lang==="en"?"en-US":"zh-TW",{maximumFractionDigits:["JPY","KRW"].includes(code)?0:2}).format(value);
     const converted=code=>amount*(rates[code]||0)/(rates[source]||1);
     function render(){
       $("primaryGrid").innerHTML=primary.map(code=>`<article class="currency-slot ${code===source?"active":""}" data-slot="${code}" draggable="true" tabindex="0" aria-label="${t("slot",{name:currencyName(code)})}"><div class="slot-top"><span><b class="code">${code}</b><small class="name">${currencyName(code)}</small></span><span class="slot-actions"><i class="grip" data-lucide="grip-vertical"></i><span class="source-label">${code===source?t("conversionSource"):""}</span><button class="pin ${code===chartBase?"pinned":""}" data-pin="${code}" type="button" aria-pressed="${code===chartBase}" aria-label="${t("pin",{name:currencyName(code)})}" title="${t("pinTitle")}"><i data-lucide="pin"></i></button></span></div><input class="amount" data-input="${code}" type="text" inputmode="decimal" value="${rates[code]?format(converted(code),code):"—"}" aria-label="${t("amount",{name:currencyName(code)})}" ${rates[code]?"":"disabled"}></article>`).join("");
