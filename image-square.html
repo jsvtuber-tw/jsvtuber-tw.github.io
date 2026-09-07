@@ -9,6 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./tokens.css">
+  <script src="./storage-consent.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <style>
@@ -50,7 +51,7 @@
         <input id="files" type="file" multiple accept="image/*">
       </label>
       <div class="thumbs is-hidden" id="thumbs"></div>
-      <p class="local">關閉頁面後，圖片與設定會自動清除。</p>
+      <p class="local">圖片只在本次工作階段保留；同意後設定會儲存在本機，清除網站資料後移除。</p>
     </aside>
 
     <section class="editor">
@@ -113,10 +114,14 @@
   <script>
     lucide.createIcons();
     const PREVIEW=1000;
-    let outputWidth=100,outputHeight=100,resolutionScale=100,pictures=[],activeId=null,format="image/png",quality=90,mode="square",pointer=null,messageTimer=null;
+    const SETTINGS_KEY="j5x-image-square-settings-v1";
+    let outputWidth=100,outputHeight=100,resolutionScale=100,pictures=[],activeId=null,format="image/png",quality=90,mode="square",keepOriginalName=true,pointer=null,messageTimer=null;
     const $=id=>document.getElementById(id);
     const canvas=$("canvas"),context=canvas.getContext("2d");
     const active=()=>pictures.find(p=>p.id===activeId);
+    function restoreSettings(){const saved=J5XStorage.get(SETTINGS_KEY,{});outputWidth=Math.min(4000,Math.max(16,Number(saved.outputWidth)||100));outputHeight=Math.min(4000,Math.max(16,Number(saved.outputHeight)||outputWidth));resolutionScale=Math.min(100,Math.max(10,Number(saved.resolutionScale)||100));format=["image/png","image/jpeg","image/webp"].includes(saved.format)?saved.format:"image/png";quality=Math.min(100,Math.max(65,Number(saved.quality)||90));mode=saved.mode==="compress"?"compress":"square";keepOriginalName=saved.keepOriginalName!==false}
+    function saveSettings(){J5XStorage.set(SETTINGS_KEY,{outputWidth,outputHeight,resolutionScale,format,quality,mode,keepOriginalName})}
+    function syncSettingsUI(){document.querySelectorAll("[data-format]").forEach(button=>button.classList.toggle("selected",button.dataset.format===format));document.querySelectorAll("[data-mode]").forEach(button=>button.classList.toggle("selected",button.dataset.mode===mode));$("quality").value=quality;$("qualityValue").textContent=quality+"%";$("keepOriginalName").checked=keepOriginalName;$("resolutionScale").value=resolutionScale;document.querySelectorAll("[data-size]").forEach(button=>button.classList.toggle("selected",+button.dataset.size===outputWidth&&outputWidth===outputHeight));$("customSize").value=outputWidth===outputHeight&&![500,250,100].includes(outputWidth)?outputWidth:"";const compress=mode==="compress";$("sizeSettings").classList.toggle("settings-disabled",compress);$("sizeSettings").setAttribute("aria-disabled",String(compress));$("sizeSettings").querySelectorAll("button,input").forEach(control=>control.disabled=compress);$("quality").disabled=format==="image/png";}
     function notify(text){clearTimeout(messageTimer);$("message").textContent=text;$("message").classList.add("show");messageTimer=setTimeout(()=>$("message").classList.remove("show"),2800)}
     function draw(target,picture,width,height=width){const ctx=target.getContext("2d");target.width=width;target.height=height;ctx.clearRect(0,0,width,height);if(format==="image/jpeg"){ctx.fillStyle="#fff";ctx.fillRect(0,0,width,height)}ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality="high";const cover=Math.max(PREVIEW/picture.image.naturalWidth,PREVIEW/picture.image.naturalHeight);const scale=cover*picture.zoom*Math.max(width,height)/PREVIEW,imageWidth=picture.image.naturalWidth*scale,imageHeight=picture.image.naturalHeight*scale;ctx.drawImage(picture.image,(picture.x+PREVIEW/2)*width/PREVIEW-imageWidth/2,(picture.y+PREVIEW/2)*height/PREVIEW-imageHeight/2,imageWidth,imageHeight)}
     function drawOriginalPreview(picture){canvas.width=picture.image.naturalWidth;canvas.height=picture.image.naturalHeight;context.clearRect(0,0,canvas.width,canvas.height);context.drawImage(picture.image,0,0);$("canvasBox").style.setProperty("--preview-ratio",`${picture.image.naturalWidth}/${picture.image.naturalHeight}`)}
@@ -133,16 +138,16 @@
     $("thumbs").addEventListener("click",event=>{const remove=event.target.closest("[data-remove]");if(remove){const id=remove.dataset.remove,target=pictures.find(p=>p.id===id);if(target)URL.revokeObjectURL(target.url);pictures=pictures.filter(p=>p.id!==id);if(activeId===id)activeId=pictures[0]?.id||null;return render()}const thumb=event.target.closest("[data-id]");if(thumb){activeId=thumb.dataset.id;render()}});
     $("zoom").addEventListener("input",event=>{const picture=active();if(picture){picture.zoom=+event.target.value;render()}});$("reset").addEventListener("click",()=>{const picture=active();if(picture){picture.zoom=1;picture.x=0;picture.y=0;render()}});
     canvas.addEventListener("pointerdown",event=>{const picture=active();if(!picture||mode==="compress")return;canvas.setPointerCapture(event.pointerId);pointer={id:event.pointerId,cx:event.clientX,cy:event.clientY,x:picture.x,y:picture.y}});canvas.addEventListener("pointermove",event=>{const picture=active();if(!pointer||!picture||pointer.id!==event.pointerId)return;const ratio=PREVIEW/canvas.getBoundingClientRect().width;picture.x=pointer.x+(event.clientX-pointer.cx)*ratio;picture.y=pointer.y+(event.clientY-pointer.cy)*ratio;draw(canvas,picture,PREVIEW)});["pointerup","pointercancel"].forEach(name=>canvas.addEventListener(name,()=>pointer=null));
-    document.querySelectorAll("[data-format]").forEach(button=>button.addEventListener("click",()=>{format=button.dataset.format;document.querySelectorAll("[data-format]").forEach(item=>item.classList.toggle("selected",item===button));$("quality").disabled=format==="image/png";render()}));$("quality").addEventListener("input",event=>{quality=+event.target.value;$("qualityValue").textContent=quality+"%"});
+    document.querySelectorAll("[data-format]").forEach(button=>button.addEventListener("click",()=>{format=button.dataset.format;saveSettings();syncSettingsUI();render()}));$("quality").addEventListener("input",event=>{quality=+event.target.value;saveSettings();$("qualityValue").textContent=quality+"%"});
     function outputDimensions(picture){return mode==="compress"?[Math.max(1,Math.round(picture.image.naturalWidth*resolutionScale/100)),Math.max(1,Math.round(picture.image.naturalHeight*resolutionScale/100))]:[outputWidth,outputHeight]}
     function updateScaleHint(){const picture=active(),dimensions=picture&&mode==="compress"?outputDimensions(picture):null;$("resolutionScaleValue").textContent=resolutionScale+"%";$("resolutionScaleHint").textContent=dimensions?`預計輸出 ${dimensions[0]} × ${dimensions[1]} px`:(mode==="compress"?"加入圖片後顯示預計輸出尺寸":"切換至原比例壓縮後可設定")}
-    function updateNameHint(){const picture=active(),dimensions=picture?outputDimensions(picture):[outputWidth,outputHeight];$("nameHint").textContent=$("keepOriginalName").checked?"輸出時使用原始檔名":`檔名附加 ${dimensions[0]}x${dimensions[1]}`}
+    function updateNameHint(){const picture=active(),dimensions=picture?outputDimensions(picture):[outputWidth,outputHeight];$("nameHint").textContent=keepOriginalName?"輸出時使用原始檔名":`檔名附加 ${dimensions[0]}x${dimensions[1]}`}
     function setOutputSize(width,height=width){outputWidth=Math.min(4000,Math.max(16,Math.round(width)));outputHeight=Math.min(4000,Math.max(16,Math.round(height)));document.querySelectorAll("[data-size]").forEach(button=>button.classList.toggle("selected",+button.dataset.size===outputWidth&&outputWidth===outputHeight));updateNameHint()}
-    document.querySelectorAll("[data-size]").forEach(button=>button.addEventListener("click",()=>{const size=+button.dataset.size;$("customSize").value="";setOutputSize(size)}));
-    $("customSize").addEventListener("input",event=>{const size=+event.target.value;if(size>=16)setOutputSize(size);else document.querySelectorAll("[data-size]").forEach(button=>button.classList.remove("selected"))});
-    document.querySelectorAll("[data-mode]").forEach(button=>button.addEventListener("click",()=>{mode=button.dataset.mode;const compress=mode==="compress";document.querySelectorAll("[data-mode]").forEach(item=>item.classList.toggle("selected",item===button));$("sizeSettings").classList.toggle("settings-disabled",compress);$("sizeSettings").setAttribute("aria-disabled",String(compress));$("sizeSettings").querySelectorAll("button,input").forEach(control=>control.disabled=compress);render();notify(compress?"已切換為原比例壓縮，可設定解析度縮放且不裁切":"已切換為正方形輸出模式")}));
-    $("resolutionScale").addEventListener("input",event=>{resolutionScale=+event.target.value;render()});
-    $("keepOriginalName").addEventListener("change",updateNameHint);
+    document.querySelectorAll("[data-size]").forEach(button=>button.addEventListener("click",()=>{const size=+button.dataset.size;$("customSize").value="";setOutputSize(size);saveSettings();syncSettingsUI();updateNameHint()}));
+    $("customSize").addEventListener("input",event=>{const size=+event.target.value;if(size>=16){setOutputSize(size);saveSettings()}else document.querySelectorAll("[data-size]").forEach(button=>button.classList.remove("selected"));syncSettingsUI();updateNameHint()});
+    document.querySelectorAll("[data-mode]").forEach(button=>button.addEventListener("click",()=>{mode=button.dataset.mode;saveSettings();syncSettingsUI();render();notify(mode==="compress"?"已切換為原比例壓縮，可設定解析度縮放且不裁切":"已切換為正方形輸出模式")}));
+    $("resolutionScale").addEventListener("input",event=>{resolutionScale=+event.target.value;saveSettings();render()});
+    $("keepOriginalName").addEventListener("change",event=>{keepOriginalName=event.target.checked;saveSettings();updateNameHint()});
     async function exportFile(picture,index){const output=document.createElement("canvas"),[width,height]=outputDimensions(picture);if(mode==="compress"){output.width=width;output.height=height;const ctx=output.getContext("2d");if(format==="image/jpeg"){ctx.fillStyle="#fff";ctx.fillRect(0,0,width,height)}ctx.drawImage(picture.image,0,0,width,height)}else draw(output,picture,width,height);const blob=await new Promise(resolve=>output.toBlob(resolve,format,format==="image/png"?undefined:quality/100));if(!blob)throw new Error("圖片輸出失敗");const base=picture.name.replace(/\.[^/.]+$/,"" ).replace(/[<>:\"/\\|?*]/g,"-"),ext=format==="image/jpeg"?"jpg":format.split("/")[1],suffix=$("keepOriginalName").checked?"":`-${width}x${height}`;return{blob,name:`${base}${suffix}.${ext}`}}
     function downloadBlob(blob,name){const link=document.createElement("a");link.href=URL.createObjectURL(blob);link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1000)}
     function uniqueZipName(zip,name){if(!zip.file(name))return name;const dot=name.lastIndexOf("."),base=dot>0?name.slice(0,dot):name,ext=dot>0?name.slice(dot):"";let count=2,candidate=`${base}-${count}${ext}`;while(zip.file(candidate)){count+=1;candidate=`${base}-${count}${ext}`}return candidate}
@@ -150,6 +155,8 @@
     async function save(picture,index){const file=await exportFile(picture,index);downloadBlob(file.blob,file.name)}
     $("downloadOne").addEventListener("click",()=>{const picture=active();if(picture)save(picture,pictures.indexOf(picture))});
     $("downloadAll").addEventListener("click",async()=>{if(!pictures.length)return;if(typeof JSZip==="undefined")return notify("ZIP 元件載入失敗，請重新整理後再試");const button=$("downloadAll"),original=button.innerHTML;button.disabled=true;button.setAttribute("aria-busy","true");button.textContent="正在建立 ZIP…";notify("正在產生高品質圖片並封裝 ZIP…");try{const zip=new JSZip();for(let i=0;i<pictures.length;i++){const file=await exportFile(pictures[i],i);zip.file(uniqueZipName(zip,file.name),file.blob)}const blob=await zip.generateAsync({type:"blob",compression:"DEFLATE",compressionOptions:{level:6}});downloadBlob(blob,archiveName());notify(`完成！ZIP 內含 ${pictures.length} 張圖片`)}catch(error){console.error(error);notify("建立 ZIP 失敗，請稍後再試")}finally{button.innerHTML=original;button.disabled=!pictures.length;button.removeAttribute("aria-busy");lucide.createIcons()}});
+    restoreSettings();syncSettingsUI();updateNameHint();
+    window.addEventListener("j5x-storage-consent",event=>{if(event.detail?.granted){restoreSettings();syncSettingsUI();render()}});
   </script>
 </body>
 </html>

@@ -34,6 +34,7 @@
   <!-- 載入 Babel (讓瀏覽器能直接執行 React 的 JSX 語法) -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <link rel="stylesheet" href="./tokens.css">
+  <script src="./storage-consent.js"></script>
   <link rel="stylesheet" href="./tool-theme.css">
 </head>
 <body class="bg-slate-950 text-slate-200">
@@ -70,6 +71,8 @@
     const auth = getAuth(app);
     const db = getFirestore(app);
     const globalAppId = 'jsvtb-48aff';
+    const SETTINGS_KEY = 'j5x-police-tool-settings-v1';
+    const readSettings = () => J5XStorage.get(SETTINGS_KEY, {});
 
     // ==========================================
     // 2. 初始預設資料 
@@ -130,18 +133,34 @@
       const [editFormData, setEditFormData] = useState([]);
       
       const [isLoading, setIsLoading] = useState(true);
-      const [discount, setDiscount] = useState(0); 
-      const [showDetailsInSummary, setShowDetailsInSummary] = useState(false);
-      const [showDetailsInMenu, setShowDetailsInMenu] = useState(false);
+      const [discount, setDiscount] = useState(() => Number(readSettings().discount) || 0);
+      const [showDetailsInSummary, setShowDetailsInSummary] = useState(() => readSettings().showDetailsInSummary === true);
+      const [showDetailsInMenu, setShowDetailsInMenu] = useState(() => readSettings().showDetailsInMenu === true);
       const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, message: '', onConfirm: null });
       const fileInputRef = useRef(null);
       const [copySuccess, setCopySuccess] = useState(false);
 
-      const [searchTerm, setSearchTerm] = useState('');
-      const [searchType, setSearchType] = useState('rule');
-
+      const [searchTerm, setSearchTerm] = useState(() => typeof readSettings().searchTerm === 'string' ? readSettings().searchTerm : '');
+      const [searchType, setSearchType] = useState(() => readSettings().searchType === 'category' ? 'category' : 'rule');
       const [draggedItem, setDraggedItem] = useState(null);
       const [dragOverItem, setDragOverItem] = useState(null);
+      useEffect(() => {
+        J5XStorage.set(SETTINGS_KEY, { discount, showDetailsInSummary, showDetailsInMenu, searchTerm, searchType });
+      }, [discount, showDetailsInSummary, showDetailsInMenu, searchTerm, searchType]);
+
+      useEffect(() => {
+        const onConsent = (event) => {
+          if (!event.detail?.granted) return;
+          const saved = readSettings();
+          if (Number.isFinite(Number(saved.discount))) setDiscount(Number(saved.discount));
+          setShowDetailsInSummary(saved.showDetailsInSummary === true);
+          setShowDetailsInMenu(saved.showDetailsInMenu === true);
+          if (typeof saved.searchTerm === 'string') setSearchTerm(saved.searchTerm);
+          if (saved.searchType === 'category' || saved.searchType === 'rule') setSearchType(saved.searchType);
+        };
+        window.addEventListener('j5x-storage-consent', onConsent);
+        return () => window.removeEventListener('j5x-storage-consent', onConsent);
+      }, []);
 
       const getRulesDocRef = () => doc(db, 'PCT', 'global_rules');
 

@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="./storage-consent.js"></script>
     <title>大熊寶殿 - 賽道規劃工具</title>
     <!-- 引入 Tailwind CSS 作為快速排版工具 -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -531,6 +532,43 @@
             screenRectStart: {x: 0, y: 0},
             screenRectEnd: {x: 0, y: 0}
         };
+
+        const SETTINGS_KEY = 'j5x-map-settings-v1';
+        function saveSettings() {
+            J5XStorage.set(SETTINGS_KEY, {
+                routeColor: state.routeColor,
+                areaColor: state.areaColor,
+                areaLineStyle: state.areaLineStyle,
+                areaGlowEnabled: state.areaGlowEnabled,
+                areaGlowColor: state.areaGlowColor,
+                cornerRadius: state.cornerRadius,
+                maskOpacity: state.maskOpacity,
+                showAuxNodes: state.showAuxNodes
+            });
+        }
+
+        function restoreSettings() {
+            const saved = J5XStorage.get(SETTINGS_KEY, {});
+            const color = /^#[0-9a-f]{6}$/i;
+            if (color.test(saved.routeColor || '')) state.routeColor = saved.routeColor;
+            if (color.test(saved.areaColor || '')) state.areaColor = saved.areaColor;
+            if (saved.areaLineStyle === 'solid' || saved.areaLineStyle === 'warning') state.areaLineStyle = saved.areaLineStyle;
+            if (typeof saved.areaGlowEnabled === 'boolean') state.areaGlowEnabled = saved.areaGlowEnabled;
+            if (color.test(saved.areaGlowColor || '')) state.areaGlowColor = saved.areaGlowColor;
+            if (Number.isFinite(Number(saved.cornerRadius))) state.cornerRadius = Math.min(200, Math.max(0, Number(saved.cornerRadius)));
+            if (Number.isFinite(Number(saved.maskOpacity))) state.maskOpacity = Math.min(1, Math.max(0, Number(saved.maskOpacity)));
+            if (typeof saved.showAuxNodes === 'boolean') state.showAuxNodes = saved.showAuxNodes;
+            document.getElementById('input-route-color').value = state.routeColor;
+            document.getElementById('input-area-color').value = state.areaColor;
+            document.getElementById('input-area-style').value = state.areaLineStyle;
+            document.getElementById('input-area-glow-enabled').checked = state.areaGlowEnabled;
+            document.getElementById('input-area-glow-color').value = state.areaGlowColor;
+            document.getElementById('input-radius').value = state.cornerRadius;
+            document.getElementById('radius-val').innerText = state.cornerRadius + 'px';
+            document.getElementById('input-opacity').value = state.maskOpacity * 100;
+            document.getElementById('opacity-val').innerText = (state.maskOpacity * 100) + '%';
+            document.getElementById('input-show-aux-nodes').checked = state.showAuxNodes;
+        }
 
         let transferMode = 'none'; 
         let pendingImportData = [];
@@ -1325,26 +1363,26 @@
 
             document.getElementById('btn-clear-route').addEventListener('click', () => { state.routePoints = []; state.selectedRouteNodeIndex = -1; requestRender(); });
             document.getElementById('btn-clear-area').addEventListener('click', () => { state.areaPoints = []; state.selectedAreaNodeIndex = -1; requestRender(); });
-            document.getElementById('input-route-color').addEventListener('input', (e) => { state.routeColor = e.target.value; requestRender(); });
-            document.getElementById('input-area-color').addEventListener('input', (e) => { state.areaColor = e.target.value; requestRender(); });
-            document.getElementById('input-area-style').addEventListener('change', (e) => { state.areaLineStyle = e.target.value; requestRender(); });
-            document.getElementById('input-area-glow-enabled').addEventListener('change', (e) => { state.areaGlowEnabled = e.target.checked; requestRender(); });
-            document.getElementById('input-area-glow-color').addEventListener('input', (e) => { state.areaGlowColor = e.target.value; requestRender(); });
+            document.getElementById('input-route-color').addEventListener('input', (e) => { state.routeColor = e.target.value; saveSettings(); requestRender(); });
+            document.getElementById('input-area-color').addEventListener('input', (e) => { state.areaColor = e.target.value; saveSettings(); requestRender(); });
+            document.getElementById('input-area-style').addEventListener('change', (e) => { state.areaLineStyle = e.target.value; saveSettings(); requestRender(); });
+            document.getElementById('input-area-glow-enabled').addEventListener('change', (e) => { state.areaGlowEnabled = e.target.checked; saveSettings(); requestRender(); });
+            document.getElementById('input-area-glow-color').addEventListener('input', (e) => { state.areaGlowColor = e.target.value; saveSettings(); requestRender(); });
             
             document.getElementById('input-show-aux-nodes').addEventListener('change', (e) => { 
                 state.showAuxNodes = e.target.checked; 
-                requestRender(); 
+                saveSettings(); requestRender();
             });
 
             document.getElementById('input-radius').addEventListener('input', (e) => {
                 state.cornerRadius = parseInt(e.target.value);
                 document.getElementById('radius-val').innerText = state.cornerRadius + 'px';
-                requestRender();
+                saveSettings(); requestRender();
             });
             document.getElementById('input-opacity').addEventListener('input', (e) => {
                 state.maskOpacity = parseInt(e.target.value) / 100;
                 document.getElementById('opacity-val').innerText = e.target.value + '%';
-                requestRender();
+                saveSettings(); requestRender();
             });
 
             const modal = document.getElementById('save-modal');
@@ -1900,6 +1938,13 @@
             }
         }
 
+        window.addEventListener('j5x-storage-consent', (event) => {
+            if (event.detail?.granted) {
+                restoreSettings();
+                requestRender();
+            }
+        });
+        restoreSettings();
         window.onload = init;
     </script>
 </body>

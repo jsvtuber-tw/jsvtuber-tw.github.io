@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="./storage-consent.js"></script>
     <title>大熊寶殿 - 晉級賽程圖表工具</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -170,12 +171,39 @@
     </div>
 
     <script>
+        const SETTINGS_KEY = 'j5x-tournament-settings-v1';
         let playersData = [];
         let manualWinners = {}; 
         let tournamentMatrix = []; 
         let injectedPlayers = {}; 
         let promptTarget = null;
         let customRoundNames = {}; // 儲存使用者自訂的賽事輪次名稱
+
+        function saveSettings() {
+            J5XStorage.set(SETTINGS_KEY, {
+                themeColor: document.getElementById('themeColorPicker').value,
+                bgColor: document.getElementById('bgColorPicker').value,
+                screenshot: document.getElementById('screenshotToggle').checked,
+                mode: document.getElementById('modeSelect').value,
+                ffa: document.getElementById('ffaSelect').value,
+                championTitle: document.getElementById('championTitleInput').value,
+                playerInput: document.getElementById('playerInput').value
+            });
+        }
+
+        function restoreSettings() {
+            const saved = J5XStorage.get(SETTINGS_KEY, {});
+            const color = /^#[0-9a-f]{6}$/i;
+            if (color.test(saved.themeColor || '')) document.getElementById('themeColorPicker').value = saved.themeColor;
+            if (color.test(saved.bgColor || '')) document.getElementById('bgColorPicker').value = saved.bgColor;
+            if (saved.mode === 'random' || saved.mode === 'manual') document.getElementById('modeSelect').value = saved.mode;
+            if (saved.ffa === 'true' || saved.ffa === 'false') document.getElementById('ffaSelect').value = saved.ffa;
+            if (typeof saved.championTitle === 'string') document.getElementById('championTitleInput').value = saved.championTitle;
+            if (typeof saved.playerInput === 'string' && saved.playerInput.trim()) document.getElementById('playerInput').value = saved.playerInput;
+            document.getElementById('screenshotToggle').checked = saved.screenshot === true;
+            updateThemeColors();
+            toggleScreenshotMode();
+        }
 
         // 工具函數：Hex 轉 RGB，給 CSS 變數使用
         function hexToRgbStr(hex) {
@@ -199,6 +227,7 @@
             
             // 重新畫線套用新顏色
             if (tournamentMatrix.length > 0) drawLines();
+            saveSettings();
         }
 
         // 截圖模式切換
@@ -209,6 +238,7 @@
             } else {
                 document.body.classList.remove('screenshot-mode');
             }
+            saveSettings();
         }
 
         function showAlert(msg) {
@@ -231,11 +261,13 @@
                 ta.value = "張三 vs 李四\n王五 vs 趙六\n大魔王";
                 ta.placeholder = "輸入名單（格式：選手A vs 選手B）\n若單人請直接輸入名字";
             }
+            saveSettings();
         }
 
         // 儲存使用者修改的賽程名稱
         function updateRoundName(r, name) {
             customRoundNames[r] = name;
+            saveSettings();
         }
 
         function startTournament() {
@@ -718,9 +750,15 @@
         window.addEventListener('resize', () => {
             if (tournamentMatrix.length > 0) requestAnimationFrame(drawLines);
         });
-        
-        // 頁面載入時初始化主題
-        updateThemeColors();
+
+        document.getElementById('championTitleInput').addEventListener('input', saveSettings);
+        document.getElementById('playerInput').addEventListener('input', saveSettings);
+        window.addEventListener('j5x-storage-consent', event => {
+            if (event.detail?.granted) restoreSettings();
+        });
+
+        // 頁面載入時初始化主題與已同意儲存的偏好
+        restoreSettings();
 
     </script>
 </body>
